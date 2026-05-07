@@ -1,0 +1,25 @@
+name: word-moe-llm
+description: 5B Word-based MoE LLM with RAG and Continuous Learning
+
+resources:
+  cloud: cpu
+  cpus: 16+
+  memory: 32GB+
+
+commands:
+  - pip install -r requirements.txt
+  - cd training && python 01_generate_dataset.ipynb
+  - cd training && python 02_train_moe.ipynb
+  - cd training && python 03_quantize_export.ipynb
+  - cd backend && uvicorn app:app --host 0.0.0.0 --port 8080
+
+ports:
+  - "8080"
+
+workflow:
+  name: train-and-serve
+  steps:
+    - name: train
+      command: python training/train.py
+    - name: serve
+      command: python backend/app.py

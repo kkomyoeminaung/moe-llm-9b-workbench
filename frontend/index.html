@@ -1,0 +1,113 @@
+<!-- frontend/index.html - Updated with Upload + Dream Mode -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Word MoE LLM - Dream Mode + Knowledge Ingestion</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🧠 Word MoE LLM</h1>
+            <p>5B Parameters | 10 Experts | Dream Mode | Knowledge Ingestion</p>
+        </header>
+
+        <!-- Dream Mode Panel -->
+        <div class="dream-panel">
+            <div class="dream-header">
+                <h3>🌙 Dream Mode</h3>
+                <div class="dream-controls">
+                    <button id="dreamToggle" class="dream-btn">⏸️ Pause</button>
+                    <label>Idle threshold: <input type="number" id="idleThresholdInput" value="60" min="10" max="600"> seconds</label>
+                </div>
+            </div>
+            <div class="dream-status">
+                <div>Status: <span id="dreamStatus">Idle</span></div>
+                <div>Stage: <span id="dreamStage">0/10</span></div>
+                <div>Stage Name: <span id="stageName">Chat Basics</span></div>
+                <div>Idle Time: <span id="idleTime">0</span>s / <span id="idleThresholdDisplay">60</span>s</div>
+            </div>
+            <div class="expert-progress">
+                <div id="expertProgressBars"></div>
+            </div>
+        </div>
+
+
+        <!-- Knowledge Ingestion Panel -->
+        <div class="ingestion-panel">
+            <h3>📁 Knowledge Ingestion</h3>
+            <div class="upload-area" id="uploadArea">
+                <input type="file" id="fileInput" multiple accept=".txt,.pdf,.docx,.html,.zip,.json">
+                <label for="fileInput" class="upload-label">📂 Choose files or drag & drop</label>
+                <select id="domainSelect">
+                    <option value="">Auto-detect domain</option>
+                    <option value="0">Chat</option>
+                    <option value="1">Engineering</option>
+                    <option value="2">Science</option>
+                    <option value="3">Medicine</option>
+                    <option value="4">Software Development</option>
+                    <option value="5">Religion</option>
+                    <option value="6">History</option>
+                    <option value="7">Economy</option>
+                    <option value="8">Politics</option>
+                    <option value="9">Literature</option>
+                </select>
+                <button id="uploadBtn">📤 Upload & Ingest</button>
+            </div>
+            <div id="uploadProgress" class="upload-progress" style="display:none"></div>
+            <div id="ingestionHistory" class="ingestion-history"></div>
+        </div>
+
+        <!-- Software Architect Panel -->
+        <div class="architect-panel">
+            <h3>🛠️ Autonomous Software Architect</h3>
+            <div class="architect-controls">
+                <input type="text" id="projNameInput" placeholder="Project Name (e.g. MyAmazingApp)">
+                <textarea id="projRequirements" placeholder="Describe the software you want to build... (e.g. Create a calculator that logs history to a file)"></textarea>
+                <button id="buildBtn">🚀 Plan, Code & Run</button>
+            </div>
+            <div id="buildOutput" class="build-output" style="display:none">
+                <div class="status-indicator">Status: <span id="buildStatusText">Idle</span></div>
+                <div class="files-list">Files: <span id="buildFilesList">-</span></div>
+                <div class="terminal" id="buildTerminal"></div>
+                <a id="downloadLink" class="download-btn" style="display:none">📥 Download Zip Archive</a>
+            </div>
+        </div>
+        <div class="chat-area" id="chatArea">
+            <div class="message system">
+                🤖 Active expert: <span id="activeExpert">chat</span> | 
+                RAG: <span id="ragStatus">ON</span> |
+                Dream Mode: <span id="dreamModeStatus">Idle</span>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <label><input type="checkbox" id="ragToggle" checked> Enable RAG</label>
+            <label><input type="checkbox" id="dreamModeToggle" checked> Enable Dream Mode</label>
+            <label><input type="checkbox" id="streamToggle"> Streaming Mode</label>
+            <div class="control-group">
+                <label>Temperature:</label>
+                <input type="range" id="temperature" min="0.1" max="1.5" step="0.1" value="0.7">
+                <span id="tempValue">0.7</span>
+            </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type words separated by space... or upload files to teach me!" />
+            <button id="sendBtn">Send</button>
+        </div>
+
+        <!-- Expert Utilization Bars -->
+        <div class="expert-utilization">
+            <h4>🎯 Expert Utilization</h4>
+            <div id="expertBars"></div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

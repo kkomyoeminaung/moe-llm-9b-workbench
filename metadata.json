@@ -1,0 +1,6 @@
+{
+  "name": "MoE LLM Workbench",
+  "description": "A full-stack workbench for managing, training, and testing a 5B parameter Sparse Mixture of Experts LLM.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}

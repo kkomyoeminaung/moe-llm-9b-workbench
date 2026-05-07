@@ -1,0 +1,11 @@
+torch
+torchvision
+transformers
+peft
+bitsandbytes
+faiss-cpu
+ninja
+datasets
+accelerate
+safetensors
+sentencepiece

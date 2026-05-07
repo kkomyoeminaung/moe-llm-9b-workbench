@@ -1,0 +1,259 @@
+/* frontend/style.css - Additions for Dream Mode + Ingestion */
+
+/* Dream Mode Panel */
+.dream-panel {
+    background: linear-gradient(135deg, #1a0a2e 0%, #0a0a2e 100%);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    border: 1px solid #4a0a6e;
+}
+
+.dream-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.dream-header h3 {
+    color: #b77eff;
+    margin: 0;
+}
+
+.dream-controls {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+}
+
+.dream-btn {
+    background: #4a0a6e;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 20px;
+    color: white;
+    cursor: pointer;
+}
+
+.dream-status {
+    display: flex;
+    gap: 20px;
+    font-size: 12px;
+    color: #aaa;
+    margin-bottom: 12px;
+}
+
+.expert-progress {
+    margin-top: 8px;
+}
+
+/* Ingestion Panel */
+.ingestion-panel {
+    background: rgba(0,0,0,0.3);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+}
+
+.upload-area {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+}
+
+.upload-label {
+    background: #2d2d44;
+    padding: 10px 20px;
+    border-radius: 24px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+#fileInput {
+    display: none;
+}
+
+#domainSelect {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    padding: 10px 16px;
+    border-radius: 24px;
+    color: white;
+}
+
+#uploadBtn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    padding: 10px 24px;
+    border-radius: 24px;
+    color: white;
+    cursor: pointer;
+}
+
+.upload-progress {
+    margin-top: 12px;
+    background: #2d2d44;
+    border-radius: 20px;
+    height: 20px;
+    overflow: hidden;
+}
+
+.progress-bar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+.ingestion-history {
+    margin-top: 12px;
+    max-height: 150px;
+    overflow-y: auto;
+    font-size: 11px;
+    color: #888;
+}
+
+.ingestion-item {
+    padding: 4px 8px;
+    border-bottom: 1px solid #222;
+}
+
+/* Architect Panel */
+.architect-panel {
+    background: rgba(26, 43, 60, 0.4);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    border: 1px solid #1e3a5a;
+}
+
+.architect-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+#projNameInput {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    padding: 10px 16px;
+    border-radius: 8px;
+    color: white;
+    font-size: 14px;
+}
+
+#projRequirements {
+    background: #1a1a2e;
+    border: 1px solid #333;
+    padding: 10px 16px;
+    border-radius: 8px;
+    color: white;
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+#buildBtn {
+    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s;
+}
+
+#buildBtn:active {
+    transform: scale(0.98);
+}
+
+#buildBtn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.build-output {
+    margin-top: 16px;
+    padding: 12px;
+    background: #0d1117;
+    border-radius: 8px;
+    font-size: 13px;
+}
+
+.terminal {
+    background: #161b22;
+    color: #e6edf3;
+    padding: 12px;
+    border-radius: 4px;
+    font-family: 'Courier New', Courier, monospace;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+    margin: 8px 0;
+}
+
+.download-btn {
+    display: inline-block;
+    margin-top: 12px;
+    padding: 10px 16px;
+    background: #10b981;
+    color: white;
+    text-decoration: none;
+    border-radius: 8px;
+    font-weight: bold;
+    text-align: center;
+}
+
+.download-btn:hover {
+    background: #059669;
+}
+.expert-utilization {
+    margin-top: 16px;
+    padding: 12px;
+    background: rgba(0,0,0,0.2);
+    border-radius: 8px;
+}
+
+.expert-utilization h4 {
+    margin: 0 0 8px 0;
+    font-size: 12px;
+    color: #aaa;
+}
+
+.expert-bar-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-size: 10px;
+}
+
+.expert-name {
+    width: 70px;
+    color: #888;
+}
+
+.expert-bar-container {
+    flex: 1;
+    background: #2d2d44;
+    border-radius: 10px;
+    height: 12px;
+    overflow: hidden;
+}
+
+.expert-bar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s;
+}
+
+.expert-percent {
+    width: 35px;
+    text-align: right;
+    color: #aaa;
+}

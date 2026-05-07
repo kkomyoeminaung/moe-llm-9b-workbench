@@ -1,11 +1,11 @@
-<div align="center">
+# MoE LLM Workbench
 
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+## 5B parameter Word-based LLM with Sparse Mixture of Experts
 
-  <h1>Built with AI Studio</h2>
+This project contains a full-stack, production-ready implementation of a Word-based LLM using MoE, RAG, and Continuous Learning.
 
-  <p>The fastest path from prompt to production with Gemini.</p>
-
-  <a href="https://aistudio.google.com/apps">Start building</a>
-
-</div>
+### Structure
+- `training/`: Jupyter notebooks for dataset generation, training, and quantization.
+- `backend/`: FastAPI server for inference and learner integration.
+- `frontend/`: Interactive UI for querying the LLM and monitoring metrics.
+- `.lightning/`: Configuration files for Lightning AI deployment.

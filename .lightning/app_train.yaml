@@ -1,0 +1,33 @@
+# .lightning/app_train.yaml
+name: moe-llm-training
+description: Train 5B MoE LLM
+
+resources:
+  cloud: gpu
+  machine: A100
+
+workflow:
+  name: train-model
+  
+  steps:
+    - name: setup
+      command: |
+        pip install -r requirements.txt
+        
+    - name: train
+      command: |
+        python training/train_lightning.py
+        
+    - name: save-model
+      command: |
+        mkdir -p lit://moe-llm/models
+        cp data/moe_5b_final.pt lit://moe-llm/models/
+        cp data/vocab.json lit://moe-llm/data/
+        
+  artifacts:
+    - path: data/moe_5b_final.pt
+      type: model
+
+ports:
+  - port: 8080
+    name: monitoring

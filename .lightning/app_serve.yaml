@@ -1,0 +1,38 @@
+# .lightning/app_serve.yaml
+name: moe-llm-serve
+description: Serve MoE LLM API
+
+resources:
+  cloud: cpu
+  machine: CPU
+
+workflow:
+  name: serve-model
+  
+  steps:
+    - name: setup
+      command: |
+        pip install -r requirements.txt
+        
+    - name: load-model
+      command: |
+        mkdir -p data
+        cp -r lit://moe-llm/models/* data/ 2>/dev/null || true
+        cp -r lit://moe-llm/data/* data/ 2>/dev/null || true
+        
+    - name: serve
+      command: |
+        python backend/app_complete.py
+      ports:
+        - "8080"
+
+ports:
+  - port: 8080
+    name: Chat API
+    description: MoE LLM Chat Interface
+
+env:
+  - name: MODEL_PATH
+    value: "data/moe_5b_final.pt"
+  - name: DATA_PATH
+    value: "data/"
