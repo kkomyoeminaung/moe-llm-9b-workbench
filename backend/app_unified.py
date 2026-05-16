@@ -33,6 +33,8 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting MoE LLM Unified Backend")
+    # Trigger model load (and potential download) in background
+    asyncio.create_task(asyncio.to_thread(get_model))
     yield
     # Shutdown
     logger.info("Shutting down MoE LLM Unified Backend")
@@ -60,18 +62,27 @@ _model = None
 _orchestrator = None
 _vocab = None
 _word_to_idx = None
+_is_loading = False
 
 def get_model():
-    global _model
+    global _model, _is_loading
     if _model is None:
-        from backend.model_loader import get_model as loader_get_model
-        _model = loader_get_model()
+        if _is_loading:
+            return None # Still loading in background
+        _is_loading = True
+        try:
+            from backend.model_loader import get_model as loader_get_model
+            _model = loader_get_model()
+        finally:
+            _is_loading = False
     return _model
 
 def get_orchestrator():
     global _orchestrator
     if _orchestrator is None:
         model = get_model()
+        if model is None:
+            return None
         vocab = get_vocab()
         _orchestrator = SystemOrchestrator(model, vocab)
     return _orchestrator
@@ -79,10 +90,12 @@ def get_orchestrator():
 # --- Models ---
 class ChatRequest(BaseModel):
     message: List[str]
+    system_prompt: Optional[str] = "You are a highly intelligent Mixture of Experts (MoE) Large Language Model. You provide accurate, helpful, and concise answers."
     use_rag: bool = True
     use_web: bool = False
     stream: bool = False
     temperature: float = 0.7
+    max_tokens: int = 512
     top_k: int = 50
 
 class ChatResponse(BaseModel):
@@ -101,20 +114,54 @@ class BuildRequest(BaseModel):
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
     model = get_model()
+    if model is None:
+        async def loading_gen():
+            yield json.dumps({"word": "Model is still loading... ", "expert_id": 0, "expert_name": "System"}) + "\n"
+        return StreamingResponse(loading_gen(), media_type="application/json")
+    
     vocab = get_vocab()
+    is_ext = getattr(model, "is_external", False)
     
     # Context retrieval
-    context_prefix = []
+    context_str = ""
     if req.use_rag:
         retrieved = await rag.retrieve(req.message, k=5, use_web=req.use_web)
-        for chunk in retrieved:
-            context_prefix.extend(chunk[:5])
+        if retrieved:
+            context_str = "\n\nContext information:\n" + "\n".join([" ".join(c) for c in retrieved])
             
-    raw_input = (context_prefix + req.message)[-CONTEXT_LEN:]
-    current_ids = torch.tensor([[get_word_id(w) for w in raw_input]]).long().to(DEVICE)
+    user_query = " ".join(req.message)
     
+    # Construct Chat Format with better context isolation
+    full_persona = req.system_prompt
+    if context_str:
+        full_persona += f"\n\n### CONTEXT INFORMATION\nThe following information was retrieved to help you answer accurately:\n{context_str}\n\n### RESPONSE GUIDELINES\nUse the context above if relevant. If the context doesn't help, rely on your general knowledge. Maintain your persona as defined in the initial instructions."
+
+    messages = [
+        {"role": "system", "content": full_persona},
+        {"role": "user", "content": user_query}
+    ]
+    
+    # Prepare model name for display
+    display_name = EXTERNAL_MODEL_PATH.split('/')[-1] if USE_EXTERNAL_MODEL else "System"
+
     async def generate():
-        ids = current_ids.clone()
+        if is_ext:
+            # True token-by-token streaming
+            for token in model.adapter.stream_generate(
+                messages, 
+                max_new_tokens=req.max_tokens, 
+                temperature=req.temperature
+            ):
+                yield json.dumps({
+                    "word": token,
+                    "expert_id": 0,
+                    "expert_name": display_name
+                }) + "\n"
+                await asyncio.sleep(0.01)
+            return
+
+        # Original Custom MoE Logic
+        ids = torch.tensor([[get_word_id(w) for w in prompt_text.split()[-CONTEXT_LEN:]]]).long().to(DEVICE)
         model.eval()
         with torch.no_grad():
             for i in range(50): # Max stream length
@@ -130,7 +177,6 @@ async def chat_stream(req: ChatRequest):
                 
                 word = vocab.get(str(predicted_id), "unknown")
                 
-                # Yield JSON chunk
                 yield json.dumps({
                     "word": word,
                     "expert_id": expert_id.item(),
@@ -154,28 +200,54 @@ async def healthz():
 async def chat(req: ChatRequest):
     persistence.increment_stat("total_interactions")
     model = get_model()
+    if model is None:
+        return ChatResponse(
+            response="Model is still loading. Please wait...",
+            expert_used=0,
+            expert_name="System",
+            confidence=1.0
+        )
     vocab = get_vocab()
     orchestrator = get_orchestrator()
+    is_ext = getattr(model, "is_external", False)
     
     # RAG retrieval & Context Integration
-    context_prefix = []
+    context_str = ""
     retrieved_chunks = []
     if req.use_rag:
         retrieved_chunks = await rag.retrieve(req.message, k=5, use_web=req.use_web)
         if retrieved_chunks:
-            # Extract first keyword from each chunk to augment context
-            for chunk in retrieved_chunks:
-                context_prefix.extend(chunk[:5])
+            context_str = "\n\nContext information:\n" + "\n".join([" ".join(c) for c in retrieved_chunks])
     
+    user_query = " ".join(req.message)
+    full_persona = req.system_prompt
+    if context_str:
+        full_persona += f"\n\n### CONTEXT INFORMATION\n{context_str}\n\n### GUIDELINES\nAnswer based on context if available. Maintain your persona."
+
+    messages = [
+        {"role": "system", "content": full_persona},
+        {"role": "user", "content": user_query}
+    ]
+
     # Prepare initial input
-    gen_result = generate_text(
-        model, vocab, context_prefix + req.message,
-        max_new_words=30, temperature=req.temperature, top_k=req.top_k, context_len=CONTEXT_LEN
-    )
-    
-    final_response = gen_result["text"]
-    avg_confidence = gen_result["avg_confidence"]
-    main_expert_id = gen_result["main_expert_id"]
+    if is_ext:
+        final_response = await asyncio.to_thread(
+            model.adapter.generate,
+            messages,
+            max_new_tokens=req.max_tokens,
+            temperature=req.temperature
+        )
+        avg_confidence = 0.95
+        main_expert_id = 0
+    else:
+        gen_result = await asyncio.to_thread(
+            generate_text,
+            model, vocab, req.message, # Note: Legacy custom model doesn't support complex templates yet
+            max_new_words=req.max_tokens, temperature=req.temperature, top_k=req.top_k, context_len=CONTEXT_LEN
+        )
+        final_response = gen_result["text"]
+        avg_confidence = gen_result["avg_confidence"]
+        main_expert_id = gen_result["main_expert_id"]
     
     # Record for learning (using the full generated text as feedback for next time)
     orchestrator.record_chat_interaction(req.message, final_response, main_expert_id, avg_confidence)
@@ -261,14 +333,45 @@ async def download_file(filename: str):
 @app.get("/stats")
 async def get_stats():
     model = get_model()
-    util = model.get_expert_utilization() if hasattr(model, 'get_expert_utilization') else [0.1] * 10
-    if torch.is_tensor(util):
-        util = util.tolist()
+    model_name = EXTERNAL_MODEL_PATH if USE_EXTERNAL_MODEL else "Local MoE"
+    if model is None:
+        return {
+            "status": "loading",
+            "expert_utilization": [0.0] * NUM_EXPERTS,
+            "vocab_size": VOCAB_SIZE,
+            "num_experts": NUM_EXPERTS,
+            "device": str(DEVICE),
+            "is_external": USE_EXTERNAL_MODEL,
+            "model_name": model_name
+        }
+        
+    is_ext = getattr(model, "is_external", False)
+    
+    # Dynamic values
+    v_size = VOCAB_SIZE
+    n_experts = NUM_EXPERTS
+    
+    if is_ext:
+        v_size = model.adapter.tokenizer.vocab_size
+        n_experts = 1 # Dense models are treated as 1 expert in the UI
+
+    util = model.get_expert_utilization()
+    if isinstance(util, dict):
+        # Handle dict-based expert names from external model
+        n_experts = len(util)
+        processed_util = list(util.values())
+    else:
+        if torch.is_tensor(util):
+            util = util.tolist()
+        processed_util = util
+
     return {
-        "expert_utilization": util,
-        "vocab_size": VOCAB_SIZE,
-        "num_experts": NUM_EXPERTS,
-        "device": str(DEVICE)
+        "expert_utilization": processed_util,
+        "vocab_size": v_size,
+        "num_experts": n_experts,
+        "device": str(DEVICE),
+        "is_external": is_ext,
+        "model_name": model_name
     }
 
 if __name__ == "__main__":

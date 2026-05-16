@@ -13,12 +13,12 @@ from pathlib import Path
 class SelfLearningSystem:
     """Auto self-learning and self-correction for MoE LLM"""
     
-    def __init__(self, model, continuous_learner, rag_engine, vocab):
+    def __init__(self, model, continuous_learner, rag_engine, vocab, shared_lock):
         self.model = model
         self.learner = continuous_learner
         self.rag = rag_engine
         self.vocab = vocab
-        self._model_lock = threading.Lock()
+        self._model_lock = shared_lock
         
         # Load persistence if available
         from backend.persistence_auto import get_persistence

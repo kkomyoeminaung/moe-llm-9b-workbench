@@ -1,3 +1,4 @@
+# Node modules and build outputs
 node_modules/
 build/
 dist/
@@ -6,3 +7,43 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+.lightning/
+.pytest_cache/
+.tox/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# Models and Data (VERY IMPORTANT for GitHub)
+model/
+models/
+data/
+exports/
+*.safetensors
+*.bin
+*.pt
+*.pth
+*.ckpt
+tokenizer/
+rag_index/
+faiss.index
+chunks.pkl
+metadata.db
+memory.db
+
+# Large Frontend artifacts
+.vercel
+.next/
+out/
+build/
+yarn-error.log
+package-lock.json

@@ -1,6 +1,7 @@
 # training/config.py
 import torch
 import psutil
+import os
 
 # Device configuration
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -27,7 +28,7 @@ else:
 # Constants (Scaled down to prevent OOM)
 VOCAB_SIZE = 10000
 EMBED_DIM = 128
-CONTEXT_LEN = 128
+CONTEXT_LEN = 4096            # Increased for proper 7B reasoning
 NUM_EXPERTS = 10
 DOMAINS = ["chat", "engineering", "science", "medicine", "software_dev",
            "religion", "history", "economy", "politics", "literature"]
@@ -36,3 +37,15 @@ NUM_ACTIVE = 1              # Top-1 gating
 LEARNING_RATE = 1e-3
 WARMUP_STEPS = 500
 TOTAL_STEPS = 500000
+
+# --- LARGE MODEL CONFIG (Optional for 7B Integration) ---
+USE_EXTERNAL_MODEL = True # Force 7B MoE Architecture instead of Qwen
+# Auto download URL if checkpoints are missing (optional)
+MY_WEIGHTS_URL = os.getenv("MY_WEIGHTS_URL", "https://huggingface.co/kkomyoeminaung/MoL-7B/resolve/main/best.pt")
+EXTERNAL_MODEL_PATH = os.getenv("EXTERNAL_MODEL_PATH", "kkomyoeminaung/Qwen2.5-7B-Merged-Coder-Math")
+HF_TOKEN = os.getenv("HF_TOKEN")
+QUANTIZATION = os.getenv("QUANTIZATION", "4bit") # Options: "4bit", "8bit", "none"
+
+# --- EVALUATION CONFIG ---
+EVAL_SAMPLES = 100
+MAX_EVAL_STEPS = 50

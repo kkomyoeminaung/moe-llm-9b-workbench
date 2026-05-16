@@ -40,7 +40,7 @@ logger = setup_logger(__name__)
 class DreamMode:
     """Curriculum-based Wikipedia learning during idle time"""
     
-    def __init__(self, model, continuous_learner, rag_engine):
+    def __init__(self, model, continuous_learner, rag_engine, shared_lock):
         self.model = model
         self.learner = continuous_learner
         self.rag = rag_engine
@@ -52,7 +52,8 @@ class DreamMode:
         self.idle_threshold = 60  # 1 minute idle
         self.last_activity = time.time()
         self.dream_enabled = True # Master switch
-        self._model_lock = threading.Lock()
+        self._model_lock = shared_lock
+        self._ingested_chunks_lock = threading.Lock()
         
         # Background monitor thread
         self.monitor_thread = threading.Thread(target=self._monitor_idle)
@@ -180,11 +181,15 @@ class DreamMode:
                 if not hasattr(self, '_ingested_chunks'):
                     self._ingested_chunks = set()
                 
-                if chunk_str not in self._ingested_chunks:
-                    self.rag.add_document(chunk, domain=domain)
-                    self._ingested_chunks.add(chunk_str)
+                with self._ingested_chunks_lock:
+                    should_train = False
+                    if chunk_str not in self._ingested_chunks:
+                        self.rag.add_document(chunk, domain=domain)
+                        self._ingested_chunks.add(chunk_str)
+                        should_train = True
                     
-                    # Short training step
+                # Short training step (outside lock)
+                if should_train:
                     self._training_step(chunk, domain)
                     
                     # Clean up GPU cache occasionally
@@ -214,7 +219,7 @@ class DreamMode:
         import torch.nn.functional as F
         if self.model is None or len(words) < 2:
             return
-            
+
         try:
             # Prepare data
             input_ids = [self._get_word_id(w) for w in words[:-1]]
@@ -228,8 +233,14 @@ class DreamMode:
                 self.model.train()
                 outputs, _ = self.model(word_ids)
                 
+                # outputs can be [batch, seq_len, vocab_size]. We only need the last token prediction.
+                if outputs.dim() == 3:
+                    logits = outputs[:, -1, :]
+                else:
+                    logits = outputs
+                
                 # Use scalar target for CrossEntropy
-                loss = F.cross_entropy(outputs, targets)
+                loss = F.cross_entropy(logits, targets)
                 
                 loss.backward()
                 

@@ -12,62 +12,128 @@ async function startServer() {
   const app = express();
   const PORT = 3000;
 
-  // Start FastAPI backend
-  console.log("Installing Python dependencies...");
-  const installProcess = spawn("pip3", ["install", "-r", "requirements.txt"]);
-  
-  installProcess.on("error", (err) => {
-    console.error("Failed to start pip3 installation:", err);
-    // Try to start backend anyway
-    startBackend();
-  });
-
-  installProcess.on("exit", (code) => {
-    if (code === 0) {
-      console.log("Python dependencies installed successfully.");
-    } else {
-      console.error(`Python dependency installation failed with code ${code}`);
-    }
-    startBackend();
-  });
-
   function startBackend() {
-    console.log("Starting FastAPI backend...");
-    const logFile = path.join(process.cwd(), "backend.log");
-    const logStream = fs.createWriteStream(logFile, { flags: 'w' }); // Overwrite for clarity
+    if (process.env.START_BACKEND === "true") {
+      console.log("🚀 Starting PyTorch Backend Engine...");
+      const backend = spawn("python", ["backend/app_unified.py"]);
+      backend.stdout.on("data", (data) => console.log(`[Backend] ${data}`));
+      backend.stderr.on("data", (data) => console.error(`[Backend Error] ${data}`));
+    } else {
+      console.log("ℹ️ External Backend Mode: Proxying to port 8080. (Use START_BACKEND=true to run locally)");
+    }
+  }
+  startBackend();
 
-    const pythonProcess = spawn("python3", ["backend/app_unified.py"], {
-      env: { ...process.env, PYTHONPATH: process.cwd() }
+  // Middleware to mock responses if backend is not running in this container
+  // Mock mode is disabled by default.
+  const useMocks = false;
+  
+  if (useMocks) {
+    console.log("⚠️ MOCK_AI is enabled. Intercepting /api routes with simulated MoE engine responses.");
+    
+    app.use(express.json());
+    
+    app.post('/api/chat', (req, res) => {
+      res.json({
+        response: "This is a simulated response indicating that the UI is functioning correctly. To use the real 7B MoE engine, please deploy using Docker or Google Colab as described in your Run Guide.",
+        expert_used: 0,
+        expert_name: "Mock AI Expert",
+        confidence: 0.99,
+        sources: ["System Note"]
+      });
     });
 
-    pythonProcess.stdout.pipe(logStream);
-    pythonProcess.stderr.pipe(logStream);
-
-    pythonProcess.on("error", (err) => {
-      console.error("Failed to start FastAPI backend:", err);
-      logStream.write(`Failed to start FastAPI backend: ${err.message}\n`);
+    app.post('/api/chat/stream', (req, res) => {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      
+      const text = "This is a streaming simulated response. The UI and streaming chunk ingestion is working perfectly. Please use `run_all.sh` in Colab or Kaggle to connect to the real PyTorch engine!";
+      const words = text.split(' ');
+      
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i >= words.length) {
+          clearInterval(interval);
+          res.end();
+          return;
+        }
+        res.write(JSON.stringify({
+          word: words[i] + ' ',
+          expert_id: 0,
+          expert_name: "Mock Streaming Expert"
+        }) + '\\n');
+        i++;
+      }, 100);
     });
 
-    pythonProcess.on("exit", (code) => {
-      console.log(`FastAPI backend exited with code ${code}`);
-      logStream.write(`FastAPI backend exited with code ${code}\n`);
+    app.post('/api/build', (req, res) => {
+      setTimeout(() => {
+        res.json({
+          success: true,
+          files: ["index.js", "utils.js", "package.json"],
+          output: "Mock Build Successful. All logical constraints met. Generating artifact.",
+          zip_url: "#",
+          error: null
+        });
+      }, 3000);
     });
+
+    app.get('/api/stats', (req, res) => {
+      res.json({
+        status: "ok",
+        expert_utilization: [0.45, 0.35, 0.20],
+        vocab_size: 32000,
+        num_experts: 3,
+        device: "cpu (mock)",
+        is_external: true,
+        model_name: "Simulated Model Status"
+      });
+    });
+
+    app.get('/api/dream/status', (req, res) => {
+      res.json({
+        is_active: false,
+        current_stage: 1,
+        total_stages: 10,
+        stage_name: "Idle (Mock)",
+        idle_time: 0,
+        idle_threshold: 60,
+        progress: []
+      });
+    });
+
+    app.post('/api/dream/activity', (req, res) => {
+      res.json({ status: "ok" });
+    });
+
+    app.post('/api/ingest/upload', (req, res) => {
+      setTimeout(() => {
+        res.json({
+          results: [{ success: true, message: "Mock File Uploaded" }]
+        });
+      }, 1000);
+    });
+  } else {
+    console.log("✅ MOCK_AI is false. Production Mode: Proxying all /api traffic to PyTorch Engine (port 8080).");
   }
 
-  // Proxy /api requests to FastAPI backend
+  const backendTarget = process.env.BACKEND_URL || 'http://127.0.0.1:8080';
+
+  // Keep proxy for other routes just in case
   app.use(
     '/api',
     createProxyMiddleware({
-      target: 'http://localhost:8080',
+      target: backendTarget,
       changeOrigin: true,
       pathRewrite: {
-        '^/api': '', // remove /api prefix when forwarding
+        '^/api': '', 
       },
       on: {
         error: (err, req, res) => {
           console.error('Proxy Error:', err);
           // @ts-ignore
-          res.status(503).json({ error: 'Backend service unavailable' });
+          res.status(503).json({ error: 'Backend service unavailable', details: err.message });
         }
       }
     })

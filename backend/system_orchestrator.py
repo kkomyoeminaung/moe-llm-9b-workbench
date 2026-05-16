@@ -6,6 +6,7 @@ from agent.code_agent import CodeAgent
 from feedback.execution_feedback import CodeExecutor
 from typing import Dict, Any, Optional
 import os
+import threading
 
 class SystemOrchestrator:
     def __init__(self, model, vocab: Dict[int, str]):
@@ -15,9 +16,12 @@ class SystemOrchestrator:
         self.vocab = vocab
         self.model = model
         
-        self.dream = DreamMode(model, self.learner, self.rag)
+        # Shared training lock
+        self.model_lock = threading.Lock()
+        
+        self.dream = DreamMode(model, self.learner, self.rag, self.model_lock)
         self.ingestion = KnowledgeIngestion(self.rag, self.learner, model)
-        self.self_learning = SelfLearningSystem(model, self.learner, self.rag, self.vocab)
+        self.self_learning = SelfLearningSystem(model, self.learner, self.rag, self.vocab, self.model_lock)
         
         # New autonomous architect components
         self.executor = CodeExecutor()

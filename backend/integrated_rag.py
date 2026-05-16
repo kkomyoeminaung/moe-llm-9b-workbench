@@ -53,6 +53,8 @@ class IntegratedRAG:
         for i, word in enumerate(words[:self.embed_dim]):
             h = int(hashlib.md5(word.encode('utf-8')).hexdigest(), 16)
             embedding[i % self.embed_dim] += (h % 100) / 100.0
+        # Normalize
+        embedding = embedding / (np.linalg.norm(embedding) + 1e-8)
         return embedding.astype(np.float32)
     
     def add_document(self, words: List[str], domain: int = None, source: str = "user"):

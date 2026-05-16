@@ -41,7 +41,22 @@ def get_word_id(w: str) -> int:
     return int(hashlib.md5(w.encode('utf-8')).hexdigest(), 16) % VOCAB_SIZE
 
 def generate_text(model, vocab, initial_text_words, max_new_words=30, temperature=0.7, top_k=50, context_len=64):
-    """Common autoregressive generation logic with metadata"""
+    """Common autoregressive generation logic with metadata support for both custom and external models"""
+    
+    # --- BRANCH FOR EXTERNAL MODELS (HF 7B+) ---
+    if hasattr(model, "is_external") and model.is_external:
+        prompt = " ".join(initial_text_words)
+        # Use the adapter's optimized generate method
+        clean_text = model.adapter.generate(prompt, max_new_tokens=max_new_words, temperature=temperature)
+
+        return {
+            "text": clean_text,
+            "avg_confidence": 1.0, # Placeholder for HF models
+            "main_expert_id": 0,    # Dense model has one 'expert'
+            "expert_ids": [0]
+        }
+
+    # --- ORIGINAL CUSTOM MoE LOGIC ---
     model.eval()
     generated_words = []
     total_confidence = 0

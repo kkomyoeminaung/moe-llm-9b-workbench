@@ -1,6 +1,6 @@
 {
-  "name": "MoE LLM Workbench",
-  "description": "A full-stack workbench for managing, training, and testing a 5B parameter Sparse Mixture of Experts LLM.",
+  "name": "MoE LLM 9B Workbench",
+  "description": "A high-performance MoE LLM workbench with 7B architecture support, integrated RAG, and one-click Kaggle deployment.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

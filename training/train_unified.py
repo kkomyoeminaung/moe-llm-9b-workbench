@@ -2,6 +2,13 @@
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
+from torch.nn.utils.rnn import pad_sequence
+
+def collate_fn(batch):
+    inputs, targets = zip(*batch)
+    inputs_padded = pad_sequence(inputs, batch_first=True, padding_value=0)
+    targets = torch.stack(targets)
+    return inputs_padded, targets
 from torch.optim import AdamW
 from torch.optim.lr_scheduler import CosineAnnealingLR, LinearLR, SequentialLR
 import json
@@ -71,8 +78,8 @@ def train():
     train_size = int(0.9 * len(full_dataset))
     val_size = len(full_dataset) - train_size
     train_dataset, val_dataset = random_split(full_dataset, [train_size, val_size])
-    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=BATCH_SIZE, shuffle=True, collate_fn=collate_fn)
+    val_loader = DataLoader(val_dataset, batch_size=BATCH_SIZE, shuffle=False, collate_fn=collate_fn)
     
     # Model Setup
     model = SparseMoE_Unified(

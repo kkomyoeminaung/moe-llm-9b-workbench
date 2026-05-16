@@ -11,13 +11,16 @@ services:
       - ./models:/app/models
       - ./data:/app/data
     environment:
-      - MODEL_PATH=/app/models/moe_5b_q4_K_M.gguf
+      - APP_ENV=production
 
   frontend:
     build:
-      context: ./frontend
+      context: .
       dockerfile: Dockerfile.frontend
     ports:
-      - "3000:80"
+      - "3000:3000"
+    environment:
+      - MOCK_AI=false
+      - BACKEND_URL=http://backend:8080
     depends_on:
       - backend
