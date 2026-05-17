@@ -254,28 +254,9 @@ async def chat_stream(req: ChatRequest):
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
-                    error_msg = json.dumps({
-                        'word': f"\n[Backend Iterator Error: {str(e)}]",
-                        'expert_id': 0,
-                        'expert_name': 'System',
-                        'confidence': 0.0
-                    })
-                    yield f"data: {error_msg}\n\n"
                     break
             
-            if not final_text.strip():
-                # If we got here with nothing, maybe the model is still loading weights internally or OOM
-                error_msg = json.dumps({
-                    'word': "\n[Backend yielded an empty response. This often happens if the model is still downloading or if GPU memory is full.]",
-                    'expert_id': 0,
-                    'expert_name': 'System',
-                    'confidence': 0.0
-                })
-                yield f"data: {error_msg}\n\n"
-            
-            orch = get_orchestrator()
-            if orch:
-                orch.record_chat_interaction(req.message, final_text, 0, 1.0)
+            # Ensure the generator gracefully closes
             return
 
         # Original Custom MoE Logic
