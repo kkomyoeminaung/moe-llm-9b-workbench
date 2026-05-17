@@ -104,10 +104,10 @@ class CodeAgent:
             is_ext = getattr(self.model, "is_external", False)
             if is_ext:
                 messages = [
-                    {"role": "system", "content": f"You are an expert Python software architect. Write complete, correct, and runnable code for '{filename}'. Output ONLY valid source code. Do not wrap in markdown ``` markers. No explanations."},
+                    {"role": "system", "content": f"You are an expert Python architect. Write clean, runnable code for '{filename}'. Output ONLY code. No markdown. No explanations."},
                     {"role": "user", "content": prompt}
                 ]
-                content = self.model.adapter.generate(messages, max_new_tokens=1024, temperature=0.2)
+                content = self.model.adapter.generate(messages, max_new_tokens=768, temperature=0.2)
                 # Cleanup markdown blocks if the model generated them anyway
                 if content.startswith("```"):
                     lines = content.split('\n')

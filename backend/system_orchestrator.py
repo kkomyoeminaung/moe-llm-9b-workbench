@@ -9,12 +9,15 @@ import os
 import threading
 
 class SystemOrchestrator:
-    def __init__(self, model, vocab: Dict[int, str]):
-        self.db = MoEDatabase()
-        self.rag = self.db.rag
-        self.learner = self.db.memory
+    def __init__(self, model, vocab: Dict[int, str], rag, learner):
+        self.rag = rag
+        self.learner = learner
         self.vocab = vocab
         self.model = model
+        
+        # Stability Flags (Disabled per User Request)
+        self.ENABLE_DREAM = False
+        self.ENABLE_SELF_LEARNING = False
         
         # Shared training lock
         self.model_lock = threading.Lock()
@@ -29,8 +32,12 @@ class SystemOrchestrator:
         
     def record_chat_interaction(self, input_words, output_word, expert_id, confidence):
         self.learner.store_episode(input_words, output_word, expert_id, confidence)
-        self.dream.record_activity()
-        self.self_learning.record_interaction(input_words, output_word, expert_id, confidence)
+        
+        if self.ENABLE_DREAM:
+            self.dream.record_activity()
+            
+        if self.ENABLE_SELF_LEARNING:
+            self.self_learning.record_interaction(input_words, output_word, expert_id, confidence)
 
     def build_software(self, project_name: str, requirements: str) -> Dict:
         """Autonomous software construction workflow"""

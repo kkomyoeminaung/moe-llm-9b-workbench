@@ -270,8 +270,8 @@ class DreamMode:
                 self._dream_optimizer.zero_grad()
                 self.model.eval()
                 
-                # Periodic cache clear
-                if random.random() < 0.1 and torch.cuda.is_available():
+                # Periodic cache clear (every 5 steps for Kaggle stability)
+                if domain % 5 == 0 and torch.cuda.is_available():
                     torch.cuda.empty_cache()
         except Exception as e:
             logger.warning(f"⚠️ Training step failed: {e}")

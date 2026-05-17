@@ -66,8 +66,8 @@ export default function App() {
   
   // Toggles
   const [useRAG, setUseRAG] = useState(true);
-  const [temp, setTemp] = useState(0.7);
-  const [topK, setTopK] = useState(50);
+  const [temp, setTemp] = useState(0.1);
+  const [topK, setTopK] = useState(40);
   const [maxTokens, setMaxTokens] = useState(512);
   const [systemPrompt, setSystemPrompt] = useState('You are a highly intelligent Mixture of Experts (MoE) Large Language Model specialized in Software, Math, and Logic.');
   const [streamEnabled, setStreamEnabled] = useState(true);
@@ -117,7 +117,8 @@ export default function App() {
         if (dreamRes.ok) {
           const contentType = dreamRes.headers.get("content-type");
           if (contentType && contentType.includes("application/json")) {
-            setDreamStatus(await dreamRes.json());
+            const data = await dreamRes.json();
+            setDreamStatus(data);
             setBackendReady(true);
           }
         }
@@ -131,7 +132,6 @@ export default function App() {
                setBackendReady(true);
                setShowLoading(false);
             } else if (data.status === 'mock') {
-               // Mock mode: Allow enter but show warning elsewhere
                setBackendReady(true);
                setShowLoading(false);
             }
@@ -142,9 +142,16 @@ export default function App() {
       }
     };
 
-    poll();
-    const interval = setInterval(poll, 4000);
-    return () => clearInterval(interval);
+    let timerId: NodeJS.Timeout;
+    const activePoll = async () => {
+      try {
+        await poll();
+      } catch (e) {}
+      timerId = setTimeout(activePoll, 4000);
+    };
+
+    activePoll();
+    return () => clearTimeout(timerId);
   }, []);
 
   const handleSend = async () => {
@@ -181,10 +188,16 @@ export default function App() {
         if (!reader) throw new Error("No reader");
 
         setMessages(prev => [...prev, { role: 'bot', content: '', expert_name: 'Analyzing...' }]);
+        
         let fullContent = '';
         let lastExpert = 'Analyzing...';
+        let lastConfidence = 0;
         let buffer = '';
         
+        // Use a throttle for UI updates to prevent lag
+        let lastUpdateTime = 0;
+        const UPDATE_INTERVAL = 50; 
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -194,26 +207,44 @@ export default function App() {
           buffer = lines.pop() || '';
           
           for (const line of lines) {
-            if (!line.trim()) continue;
+            if (!line.trim() || !line.startsWith('data: ')) continue;
             try {
-              const data = JSON.parse(line);
+              const rawData = line.replace(/^data:\s*/, '');
+              const data = JSON.parse(rawData);
               fullContent += (data.word || '');
               lastExpert = data.expert_name || lastExpert;
+              lastConfidence = data.confidence || lastConfidence;
               
-              setMessages(prev => {
-                const newMessages = [...prev];
-                const last = newMessages[newMessages.length - 1];
-                if (last && last.role === 'bot') {
-                  last.content = fullContent;
-                  last.expert_name = lastExpert;
-                }
-                return newMessages;
-              });
-            } catch (e) {
-              // Ignore partial JSON
-            }
+              const now = Date.now();
+              if (now - lastUpdateTime > UPDATE_INTERVAL) {
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  const last = newMessages[newMessages.length - 1];
+                  if (last && last.role === 'bot') {
+                    last.content = fullContent;
+                    last.expert_name = lastExpert;
+                    last.confidence = lastConfidence;
+                  }
+                  return newMessages;
+                });
+                lastUpdateTime = now;
+              }
+            } catch (e) {}
           }
         }
+        
+        // Final update to catch any leftovers
+        setMessages(prev => {
+          const newMessages = [...prev];
+          const last = newMessages[newMessages.length - 1];
+          if (last && last.role === 'bot') {
+            last.content = fullContent;
+            last.expert_name = lastExpert;
+            last.confidence = lastConfidence;
+          }
+          return newMessages;
+        });
+
         setIsSending(false);
         await fetch(`${API_URL}/dream/activity`, { method: 'POST' });
         return;
@@ -513,7 +544,7 @@ export default function App() {
                           </span>
                           <span className="text-[10px] text-gray-500 font-mono tracking-wider flex items-center gap-1.5">
                             <Activity size={10} className="text-emerald-500/80" />
-                            CONF_ {msg.confidence !== undefined ? (msg.confidence * 100).toFixed(1) : '99.2'}%
+                            CONF_ {msg.confidence && msg.confidence > 0 ? (msg.confidence * 100).toFixed(1) + '%' : 'OPTIMIZED'}
                           </span>
                         </div>
                       )}

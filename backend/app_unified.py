@@ -86,7 +86,7 @@ def get_orchestrator():
         if model is None:
             return None
         vocab = get_vocab()
-        _orchestrator = SystemOrchestrator(model, vocab)
+        _orchestrator = SystemOrchestrator(model, vocab, rag, learner)
     return _orchestrator
 
 # --- Models ---
@@ -96,9 +96,9 @@ class ChatRequest(BaseModel):
     use_rag: bool = True
     use_web: bool = False
     stream: bool = False
-    temperature: float = 0.7
+    temperature: float = 0.1
     max_tokens: int = 512
-    top_k: int = 50
+    top_k: int = 40
 
 class ChatResponse(BaseModel):
     response: str
@@ -118,8 +118,8 @@ async def chat_stream(req: ChatRequest):
     model = get_model()
     if model is None:
         async def loading_gen():
-            yield json.dumps({"word": "Model is still loading... ", "expert_id": 0, "expert_name": "System"}) + "\n"
-        return StreamingResponse(loading_gen(), media_type="application/json")
+            yield f"data: {json.dumps({'word': 'Model is still loading... ', 'expert_id': 0, 'expert_name': 'System'})}\n\n"
+        return StreamingResponse(loading_gen(), media_type="text/event-stream")
     
     vocab = get_vocab()
     is_ext = getattr(model, "is_external", False)
@@ -148,26 +148,30 @@ async def chat_stream(req: ChatRequest):
 
     async def generate():
         if is_ext:
-            # True token-by-token streaming, non-blocking via asyncio.to_thread
+            # Optimized for 7B Qwen stability
+            actual_temp = max(0.1, min(req.temperature, 0.8))
+            
             iterator = iter(model.adapter.stream_generate(
                 messages, 
                 max_new_tokens=req.max_tokens, 
-                temperature=req.temperature
+                temperature=actual_temp
             ))
             final_text = ""
             while True:
                 try:
                     token = await asyncio.to_thread(next, iterator)
                     final_text += token
-                    yield json.dumps({
-                        "word": token,
-                        "expert_id": 0,
-                        "expert_name": display_name
-                    }) + "\n"
+                    payload = json.dumps({
+                        'word': token,
+                        'expert_id': 0,
+                        'expert_name': display_name,
+                        'confidence': 0.0 # Placeholder when streaming from external
+                    })
+                    yield f"data: {payload}\n\n"
                 except StopIteration:
                     break
             
-            get_orchestrator().record_chat_interaction(req.message, final_text, 0, 0.95)
+            get_orchestrator().record_chat_interaction(req.message, final_text, 0, 1.0)
             return
 
         # Original Custom MoE Logic
@@ -183,7 +187,8 @@ async def chat_stream(req: ChatRequest):
                 last_expert_id = expert_id
                 
                 logits = outputs[0, -1, :] if outputs.dim() == 3 else outputs[0]
-                probs = torch.softmax(logits / req.temperature, dim=-1)
+                actual_temp = max(req.temperature, 0.01)
+                probs = torch.softmax(logits / actual_temp, dim=-1)
                 
                 # Sample
                 top_p, top_i = torch.topk(probs, min(req.top_k, VOCAB_SIZE))
@@ -198,11 +203,12 @@ async def chat_stream(req: ChatRequest):
                 word = vocab.get(str(predicted_id), "unknown")
                 final_text += word + " "
                 
-                yield json.dumps({
-                    "word": word,
-                    "expert_id": expert_id,
-                    "expert_name": DOMAINS[expert_id] if expert_id < len(DOMAINS) else "general"
-                }) + "\n"
+                payload = json.dumps({
+                    'word': word,
+                    'expert_id': expert_id,
+                    'expert_name': DOMAINS[expert_id] if expert_id < len(DOMAINS) else "general"
+                })
+                yield f"data: {payload}\n\n"
                 
                 if word in [".", "!", "?", "<eos>"] and i > 5:
                     break
@@ -213,7 +219,7 @@ async def chat_stream(req: ChatRequest):
                 
         get_orchestrator().record_chat_interaction(req.message, final_text.strip(), last_expert_id, avg_confidence)
 
-    return StreamingResponse(generate(), media_type="application/json")
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 @app.get("/healthz")
 async def healthz():

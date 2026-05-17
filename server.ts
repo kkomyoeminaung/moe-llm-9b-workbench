@@ -15,7 +15,8 @@ async function startServer() {
   function startBackend() {
     if (process.env.START_BACKEND === "true") {
       console.log("🚀 Starting PyTorch Backend Engine...");
-      const backend = spawn("python3", ["backend/app_unified.py"], {
+      const backendPath = path.join(__dirname, "backend", "app_unified.py");
+      const backend = spawn("python3", [backendPath], {
         env: { ...process.env, PYTHONPATH: process.cwd() }
       });
       backend.stdout.on("data", (data) => console.log(`[Backend] ${data}`));
@@ -142,11 +143,11 @@ async function startServer() {
           res.end();
           return;
         }
-        res.write(JSON.stringify({
+        res.write(`data: ${JSON.stringify({
           word: words[i] + ' ',
           expert_id: 0,
           expert_name: "Mock AI (Preview Context)"
-        }) + '\n');
+        })}\n\n`);
         i++;
       }, 50);
       return;

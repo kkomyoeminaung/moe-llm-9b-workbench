@@ -71,24 +71,31 @@ class MoE7B_ArchitecturalEngine(nn.Module):
             quantization_config=quant_config,
             device_map="auto" if DEVICE.type == "cuda" else None,
             trust_remote_code=True,
+            low_cpu_mem_usage=True,
             torch_dtype=torch.float16 if DEVICE.type == "cuda" else torch.float32
         )
         
-        # Apply PEFT / QLoRA stacking for continuous learning without breaking weights
-        if DEVICE.type == "cuda":
+        # Ensure EOS/PAD synchronization
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+            self.model.config.pad_token_id = self.model.config.eos_token_id
+            
+        # Apply PEFT / QLoRA stacking for continuous learning (Temporarily Disabled for Stability per User Request)
+        DISABLE_QLORA_FOR_STABILITY = True 
+        if DEVICE.type == "cuda" and not DISABLE_QLORA_FOR_STABILITY:
             try:
                 from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
                 self.model = prepare_model_for_kbit_training(self.model)
                 lora_config = LoraConfig(
-                    r=8, 
-                    lora_alpha=16, 
-                    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"], 
+                    r=16, 
+                    lora_alpha=32, 
+                    target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"], 
                     lora_dropout=0.05, 
                     bias="none", 
                     task_type="CAUSAL_LM"
                 )
                 self.model = get_peft_model(self.model, lora_config)
-                print("🔗 QLoRA Adapters successfully stacked over 7B Core.")
+                print("🔗 QLoRA Adapters successfully prepared (waiting for training).")
             except Exception as e:
                 print(f"⚠️ Could not load QLoRA wrappers: {e}")
 
@@ -107,9 +114,9 @@ class MoE7B_ArchitecturalEngine(nn.Module):
         mock_expert_id = torch.tensor([0]).to(DEVICE) 
         return outputs.logits, mock_expert_id
 
-    def generate(self, messages, max_new_tokens=512, temperature=0.7):
+    def generate(self, messages, max_new_tokens=512, temperature=0.1):
         """
-        Uses Hugging Face Chat Templates for 100% accurate instruction following.
+        Uses Hugging Face Chat Templates with stabilized generation parameters.
         """
         # Convert simple string prompt to chat list if necessary
         if isinstance(messages, str):
@@ -125,17 +132,20 @@ class MoE7B_ArchitecturalEngine(nn.Module):
             input_ids, 
             max_new_tokens=max_new_tokens, 
             temperature=temperature,
-            do_sample=True,
-            pad_token_id=self.tokenizer.eos_token_id
+            repetition_penalty=1.1,
+            do_sample=True if temperature > 0 else False,
+            pad_token_id=self.tokenizer.pad_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            renormalize_logits=True
         )
         
         # Decode only the newly generated tokens
         prompt_len = input_ids.shape[1]
         return self.tokenizer.decode(outputs[0][prompt_len:], skip_special_tokens=True)
 
-    def stream_generate(self, messages, max_new_tokens=512, temperature=0.7):
+    def stream_generate(self, messages, max_new_tokens=512, temperature=0.1):
         """
-        True token-by-token streaming implementation.
+        True token-by-token streaming implementation with stabilized parameters.
         """
         from transformers import TextIteratorStreamer
         from threading import Thread
@@ -156,8 +166,11 @@ class MoE7B_ArchitecturalEngine(nn.Module):
             streamer=streamer,
             max_new_tokens=max_new_tokens,
             temperature=temperature,
-            do_sample=True,
-            pad_token_id=self.tokenizer.eos_token_id
+            repetition_penalty=1.1,
+            do_sample=True if temperature > 0 else False,
+            pad_token_id=self.tokenizer.pad_token_id,
+            eos_token_id=self.tokenizer.eos_token_id,
+            renormalize_logits=True
         )
 
         thread = Thread(target=self.model.generate, kwargs=generation_kwargs)

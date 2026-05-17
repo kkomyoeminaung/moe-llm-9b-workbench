@@ -65,23 +65,15 @@ class WebSearchRAG:
         
         results = []
         try:
-            session = await self._get_session()
-            url = f"https://html.duckduckgo.com/html/?q={query.replace(' ', '+')}"
-            
-            async with session.get(url, headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)'
-            }) as response:
-                html = await response.text()
-                soup = BeautifulSoup(html, 'html.parser')
-                
-                for result in soup.find_all('a', class_='result__a')[:num_results]:
-                    title = result.get_text(strip=True)
-                    link = result.get('href')
+            from duckduckgo_search import DDGS
+            with DDGS() as ddgs:
+                ddgs_gen = ddgs.text(query, max_results=num_results)
+                for r in ddgs_gen:
                     results.append({
-                        "title": title,
-                        "url": link,
-                        "snippet": "",
-                        "content": "",
+                        "title": r.get("title", ""),
+                        "url": r.get("href", ""),
+                        "snippet": r.get("body", ""),
+                        "content": r.get("body", ""),
                         "source": "web"
                     })
                         

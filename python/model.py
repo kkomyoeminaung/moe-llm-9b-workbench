@@ -44,10 +44,12 @@ class SparseMoE(nn.Module):
         target_prob = torch.ones(self.num_experts, device=x.device) / self.num_experts
         actual_prob = torch.mean(probs, dim=0) # [num_experts]
         
-        # KL divergence loss KL(P || Q) = kl_div(log(Q), P)
+        # KL divergence loss: KL(Target || Actual)
+        # Fix: F.kl_div(input, target) expects input to be log_probabilities
+        actual_log_prob = actual_prob.clamp(min=1e-8).log()
         load_balancing_loss = F.kl_div(
-            target_prob.log(),
-            actual_prob.clamp(min=1e-8),
+            actual_log_prob,
+            target_prob,
             reduction='batchmean'
         ) * self.num_experts # Scale to meaningful range
         
@@ -56,6 +58,8 @@ class SparseMoE(nn.Module):
         for i in range(self.num_experts):
             mask = (selected_experts == i)
             if mask.any():
-                output[mask] = self.experts[i](x[mask])
+                expert_output = self.experts[i](x[mask])
+                # Fix: Multiply by routing probability for gradient flow
+                output[mask] = expert_output * routing_probs[mask].unsqueeze(-1)
                 
         return output, load_balancing_loss

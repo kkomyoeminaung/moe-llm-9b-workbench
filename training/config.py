@@ -28,7 +28,7 @@ else:
 # Constants (Scaled down to prevent OOM)
 VOCAB_SIZE = 10000
 EMBED_DIM = 128
-CONTEXT_LEN = 2048            # Optimized for Colab/Kaggle T4
+CONTEXT_LEN = 1024            # Optimized for Kaggle T4 (P100 OOM safety)
 NUM_EXPERTS = 10
 DOMAINS = ["chat", "engineering", "science", "medicine", "software_dev",
            "religion", "history", "economy", "politics", "literature"]

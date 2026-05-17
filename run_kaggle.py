@@ -7,6 +7,7 @@ import random
 import string
 import json
 import sys
+import re
 
 def get_public_ip():
     try:
@@ -23,7 +24,10 @@ print("==========================================================")
 
 # Step 0: Context Initialization
 print("🧹 Cleaning up previous processes...")
-os.system("fuser -k 3000/tcp 8080/tcp 2>/dev/null")
+# Try killing by port but don't fail if tools missing
+os.system("fuser -k 3000/tcp 8080/tcp &>/dev/null || true")
+os.system("pkill -f 'node server.ts' &>/dev/null || true")
+os.system("pkill -f 'backend/app_unified.py' &>/dev/null || true")
 time.sleep(2)
 
 repo_url = "https://github.com/kkomyoeminaung/moe-llm-9b-workbench.git"
@@ -163,26 +167,20 @@ tunnel_process = subprocess.Popen(
 
 url = ""
 start_time = time.time()
-print("   - Waiting for neurally-bridged endpoint...")
-while time.time() - start_time < 60:
+print("   - Waiting for neurally-bridged endpoint (Usually 5-15s)...")
+while time.time() - start_time < 90:
     line = tunnel_process.stdout.readline()
     if not line: 
         if tunnel_process.poll() is not None: break
         time.sleep(0.5)
         continue
     
-    # Cloudflare logs sometimes have ansi codes or non-url lines
-    clean_line = line.replace('\x1b', '').replace('[', '').replace(']', '')
-    if "trycloudflare.com" in clean_line:
-        words = clean_line.split()
-        for word in words:
-            if "trycloudflare.com" in word:
-                url = word.strip("| \r\n\t")
-                if not url.startswith("http"):
-                    url = "https://" + url
-                break
-        if url: break
-    time.sleep(0.1)
+    # Use regex to find the URL reliably even with ANSI codes
+    match = re.search(r"https://[a-zA-Z0-9.-]+\.trycloudflare\.com", line)
+    if match:
+        url = match.group(0)
+        break
+    time.sleep(0.01)
 
 if url:
     print("\n" + "="*60)
@@ -193,7 +191,8 @@ if url:
     print("\n💡 NOTE: Cloudflare tunnels are faster and do not require passwords.")
     print("   If you see a verification page, just click 'Visit Site'.")
 else:
-    print("❌ Cloudflare tunnel failed or timed out. Checking network configuration...")
+    print("\n❌ Cloudflare tunnel failed or timed out.")
+    print("   Try running the cell again. Sometimes the network bridge is busy.")
 
 # Step 4: Stabilization Check
 print("\n⏳ Stabilizing system (Downloading weights & initializing)...")
