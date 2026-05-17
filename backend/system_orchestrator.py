@@ -23,14 +23,10 @@ class SystemOrchestrator:
         # Shared training lock
         self.model_lock = threading.Lock()
         
-        # Services
-        self.dream = DreamMode(model, self.learner, self.rag, self.model_lock, enabled=self.ENABLE_DREAM)
-        self.ingestion = KnowledgeIngestion(self.rag, self.learner, model)
-        self.self_learning = SelfLearningSystem(model, self.learner, self.rag, self.vocab, self.model_lock)
-        
-        # Force dream mode to be stopped initially if disabled
-        if not self.ENABLE_DREAM:
-            self.dream.stop()
+        # Services (Disabled to speed up initialization and focus on chat)
+        self.dream = None
+        self.ingestion = None
+        self.self_learning = None
         
         # New autonomous architect components
         self.executor = CodeExecutor()

@@ -108,56 +108,28 @@ export default function App() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Polling for stats and dream status (Disabled per User Request to focus on Core Chat)
-  /*
+  // Poll for backend status to clear loading screen
   useEffect(() => {
-    const poll = async () => {
+    const checkBackend = async () => {
       try {
-        const [dreamRes, statsRes] = await Promise.all([
-          fetch(`${API_URL}/dream/status`),
-          fetch(`${API_URL}/stats`)
-        ]);
-        
-        if (dreamRes.ok) {
-          const contentType = dreamRes.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const data = await dreamRes.json();
-            setDreamStatus(data);
-            setBackendReady(true);
-          }
-        }
-        
+        const statsRes = await fetch(`${API_URL}/stats`);
         if (statsRes.ok) {
-          const contentType = statsRes.headers.get("content-type");
-          if (contentType && contentType.includes("application/json")) {
-            const data = await statsRes.json();
-            setStats(data);
-            if (data.status !== 'loading' && data.status !== 'mock') {
-               setBackendReady(true);
-               setShowLoading(false);
-            } else if (data.status === 'mock') {
-               setBackendReady(true);
-               setShowLoading(false);
-            }
+          const data = await statsRes.json();
+          setStats(data);
+          if (data.status === 'active' || data.status === 'mock') {
+            setBackendReady(true);
+            setShowLoading(false);
           }
         }
       } catch (e) {
-        // Silently handle polling failure during initial startup
+        // Quiet during startup
       }
     };
 
-    let timerId: NodeJS.Timeout;
-    const activePoll = async () => {
-      try {
-        await poll();
-      } catch (e) {}
-      timerId = setTimeout(activePoll, 4000);
-    };
-
-    activePoll();
-    return () => clearTimeout(timerId);
+    const interval = setInterval(checkBackend, 3000);
+    checkBackend(); // Initial check
+    return () => clearInterval(interval);
   }, []);
-  */
 
   const handleSend = async () => {
     if (!input.trim() || isSending) return;

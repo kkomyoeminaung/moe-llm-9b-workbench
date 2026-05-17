@@ -508,7 +508,7 @@ async def download_file(filename: str):
 @app.get("/stats")
 async def get_stats():
     model = get_model()
-    model_name = EXTERNAL_MODEL_PATH if USE_EXTERNAL_MODEL else "Local MoE"
+    model_name = EXTERNAL_MODEL_PATH.split('/')[-1] if USE_EXTERNAL_MODEL else "Optimized Custom MoE"
     if model is None:
         return {
             "status": "loading",

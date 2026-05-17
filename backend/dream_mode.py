@@ -34,6 +34,7 @@ sys.path.append(str(Path(__file__).parent.parent / "training"))
 from config import VOCAB_SIZE
 
 from backend.logger import setup_logger
+from backend.utils import tokenize
 
 logger = setup_logger(__name__)
 
@@ -166,7 +167,6 @@ class DreamMode:
             text = ' '.join([p.get_text() for p in paragraphs[:20]])
             
             # Split into chunks (Unicode aware using central tokenizer)
-            from backend.utils import tokenize
             words = tokenize(text)
             words = words[:1000] # Limit size
             chunks = [words[i:i+64] for i in range(0, len(words), 64)]

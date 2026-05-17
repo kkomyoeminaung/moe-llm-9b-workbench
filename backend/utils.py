@@ -44,7 +44,7 @@ def get_word_to_idx():
 def get_word_id(w: str) -> int:
     w2i = get_word_to_idx()
     if w in w2i:
-        return w2i[w]
+        return int(w2i[w]) # Force integer to prevent embedding errors
     import hashlib
     return int(hashlib.md5(w.encode('utf-8')).hexdigest(), 16) % VOCAB_SIZE
 

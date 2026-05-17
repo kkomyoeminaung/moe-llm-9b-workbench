@@ -39,7 +39,8 @@ WARMUP_STEPS = 500
 TOTAL_STEPS = 500000
 
 # --- LARGE MODEL CONFIG (Optional for 7B Integration) ---
-USE_EXTERNAL_MODEL = True # Force 7B MoE Architecture instead of Qwen
+# Enabled by user request for 7B MoE Architecture
+USE_EXTERNAL_MODEL = True
 # Auto download URL if checkpoints are missing (optional)
 MY_WEIGHTS_URL = os.getenv("MY_WEIGHTS_URL", "https://huggingface.co/kkomyoeminaung/MoL-7B/resolve/main/best.pt")
 EXTERNAL_MODEL_PATH = os.getenv("EXTERNAL_MODEL_PATH", "kkomyoeminaung/Qwen2.5-7B-Merged-Coder-Math")
