@@ -108,7 +108,14 @@ class MoE7B_ArchitecturalEngine(nn.Module):
         """
         Expert routing implementation.
         """
-        outputs = self.model(word_ids)
+        if isinstance(word_ids, str):
+             word_ids = self.tokenizer.encode(word_ids, return_tensors="pt").to(DEVICE)
+        
+        # Ensure it's a batch of sequences
+        if word_ids.dim() == 1:
+            word_ids = word_ids.unsqueeze(0)
+            
+        outputs = self.model(input_ids=word_ids)
         # For non-MoE specific architecture, we simulate expert distribution 
         # based on logical segments to maintain the dashboard visualization.
         mock_expert_id = torch.tensor([0]).to(DEVICE) 
