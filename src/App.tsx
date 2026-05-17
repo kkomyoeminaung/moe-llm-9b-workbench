@@ -862,8 +862,8 @@ export default function App() {
                         <li className="pl-2">
                           Notebook ရဲ့ Cell ထဲတွင် အောက်ပါကုဒ်များကို ရိုက်ထည့်ပြီး <strong>Run (Shift+Enter)</strong> ကို နှိပ်ပါ။
                           <div className="bg-black/50 p-3 mt-2 rounded-lg border border-gray-800 font-mono text-xs text-green-300 break-all">
-                            !git clone [သင့် Github Repo URL]<br/>
-                            %cd [Folder နာမည်]<br/>
+                            !git clone https://github.com/kkomyoeminaung/moe-llm-9b-workbench.git<br/>
+                            %cd moe-llm-9b-workbench<br/>
                             !python run_kaggle.py
                           </div>
                         </li>
