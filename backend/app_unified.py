@@ -234,12 +234,14 @@ async def chat_stream(req: ChatRequest):
             final_text = ""
             while True:
                 try:
+                    # Run the next iteration in a thread
                     token = await asyncio.to_thread(next, iterator)
+                    
                     if token is None: break
                     final_text += token
                     
                     # Stop if model generates the EOS token or a stop sequence
-                    if token in ["<|endoftext|>", "<|im_end|>", "</s>", "unknown"]:
+                    if any(stop in token for stop in ["<|endoftext|>", "<|im_end|>", "</s>", "unknown"]):
                         break
                         
                     payload = json.dumps({
@@ -249,12 +251,16 @@ async def chat_stream(req: ChatRequest):
                         'confidence': 0.0
                     })
                     yield f"data: {payload}\n\n"
+                    
                 except StopIteration:
+                    # Normal completion
                     break
                 except Exception as e:
-                    import traceback
-                    traceback.print_exc()
+                    # Any other error at this boundary (including issues with to_thread)
+                    # should also trigger a graceful termination to prevent crash.
+                    logger.warning(f"Gracefully terminating stream due to generator boundary exception: {e}")
                     break
+
             
             # Ensure the generator gracefully closes
             return
