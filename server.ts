@@ -14,15 +14,27 @@ async function startServer() {
 
   function startBackend() {
     if (process.env.START_BACKEND === "true") {
-      console.log("🚀 Starting PyTorch Backend Engine...");
-      const backendPath = path.join(__dirname, "backend", "app_unified.py");
-      const backend = spawn("python3", [backendPath], {
-        env: { ...process.env, PYTHONPATH: process.cwd() }
+      console.log("📦 Verifying Python dependencies...");
+      // Try to install fastapi and uvicorn if missing. 
+      // We do this via spawn to stay within container permissions.
+      const pip = spawn("python3", ["-m", "pip", "install", "fastapi", "uvicorn", "pydantic", "python-multipart", "psutil", "torch", "transformers", "accelerate"], {
+        env: { ...process.env }
       });
-      backend.stdout.on("data", (data) => console.log(`[Backend] ${data}`));
-      backend.stderr.on("data", (data) => console.error(`[Backend Error] ${data}`));
-      backend.on("error", (err) => {
-        console.error("❌ Failed to start python backend:", err.message);
+
+      pip.stdout.on("data", (data) => console.log(`[Pip] ${data}`));
+      pip.stderr.on("data", (data) => console.error(`[Pip Error] ${data}`));
+
+      pip.on("close", (code) => {
+        console.log(`🚀 Pip check finished with code ${code}. Starting PyTorch Backend Engine...`);
+        const backendPath = path.join(__dirname, "backend", "app_unified.py");
+        const backend = spawn("python3", [backendPath], {
+          env: { ...process.env, PYTHONPATH: process.cwd() }
+        });
+        backend.stdout.on("data", (data) => console.log(`[Backend] ${data}`));
+        backend.stderr.on("data", (data) => console.error(`[Backend Error] ${data}`));
+        backend.on("error", (err) => {
+          console.error("❌ Failed to start python backend:", err.message);
+        });
       });
     } else {
       console.log("ℹ️ External Backend Mode: Proxying to port 8080. (Use START_BACKEND=true to run locally)");

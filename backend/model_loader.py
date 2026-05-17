@@ -214,6 +214,10 @@ class MoE7B_ArchitecturalEngine(nn.Module):
         thread = Thread(target=threaded_generate)
         thread.start()
         
+        # Consume the streamer and put tokens in the queue
+        for new_text in streamer:
+            token_queue.put(new_text)
+        
         # Generator for the queue
         while True:
             token = token_queue.get()

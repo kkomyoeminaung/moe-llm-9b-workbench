@@ -125,7 +125,10 @@ def get_orchestrator():
     if _orchestrator is not None:
         return _orchestrator
         
-    model = get_model()
+    model_obj = get_model()
+    # Handle case where get_model might return a tuple (model, tokenizer) or just the model
+    model = model_obj[0] if isinstance(model_obj, tuple) else model_obj
+    
     if model is None:
         return None
         
@@ -161,7 +164,10 @@ class BuildRequest(BaseModel):
 
 @app.post("/chat/stream")
 async def chat_stream(req: ChatRequest):
-    model = get_model()
+    model_obj = get_model()
+    # Handle case where get_model might return a tuple (model, tokenizer) or just the model
+    model = model_obj[0] if isinstance(model_obj, tuple) else model_obj
+    
     if model is None:
         async def loading_gen():
             yield f"data: {json.dumps({'word': 'Model is still loading... ', 'expert_id': 0, 'expert_name': 'System'})}\n\n"
@@ -334,7 +340,10 @@ async def healthz():
 @app.post("/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     get_persistence_cached().increment_stat("total_interactions")
-    model = get_model()
+    model_obj = get_model()
+    # Handle case where get_model might return a tuple (model, tokenizer) or just the model
+    model = model_obj[0] if isinstance(model_obj, tuple) else model_obj
+    
     if model is None:
         return ChatResponse(
             response="Model is still loading. Please wait...",
@@ -445,13 +454,15 @@ async def start_dream():
     orchestrator = get_orchestrator()
     if orchestrator is None:
         raise HTTPException(status_code=503, detail="Model is still loading")
+    if not orchestrator.dream:
+        raise HTTPException(status_code=400, detail="Dream mode is disabled")
     orchestrator.dream.start()
     return {"status": "started"}
 
 @app.post("/dream/stop")
 async def stop_dream():
     orchestrator = get_orchestrator()
-    if orchestrator is None:
+    if orchestrator is None or not orchestrator.dream:
         return {"status": "already stopped"}
     orchestrator.dream.stop()
     return {"status": "stopped"}
@@ -459,14 +470,14 @@ async def stop_dream():
 @app.post("/dream/activity")
 async def activity():
     orchestrator = get_orchestrator()
-    if orchestrator:
+    if orchestrator and orchestrator.dream:
         orchestrator.dream.record_activity()
     return {"status": "ok"}
 
 @app.post("/dream/threshold")
 async def set_threshold(body: dict):
     orchestrator = get_orchestrator()
-    if orchestrator:
+    if orchestrator and orchestrator.dream:
         orchestrator.dream.set_threshold(body.get("threshold", 60))
         return {"status": "updated"}
     return {"status": "skipped"}
@@ -500,7 +511,10 @@ async def download_file(filename: str):
 
 @app.get("/stats")
 async def get_stats():
-    model = get_model()
+    model_obj = get_model()
+    # Handle tuple unwrap
+    model = model_obj[0] if isinstance(model_obj, tuple) else model_obj
+    
     model_name = EXTERNAL_MODEL_PATH.split('/')[-1] if USE_EXTERNAL_MODEL else "Optimized Custom MoE"
     if model is None:
         return {
