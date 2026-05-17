@@ -56,10 +56,12 @@ class DreamMode:
         self._ingested_chunks_lock = threading.Lock()
         self._ingested_chunks = set()
         
-        # Background monitor thread
-        self.monitor_thread = threading.Thread(target=self._monitor_idle)
-        self.monitor_thread.daemon = True
-        self.monitor_thread.start()
+        # Background monitor thread (Conditionally started)
+        self.monitor_thread = None
+        if self.dream_enabled:
+            self.monitor_thread = threading.Thread(target=self._monitor_idle)
+            self.monitor_thread.daemon = True
+            self.monitor_thread.start()
         
         # Curriculum stages
         self.curriculum = [
@@ -163,9 +165,10 @@ class DreamMode:
             paragraphs = soup.find_all('p')
             text = ' '.join([p.get_text() for p in paragraphs[:20]])
             
-        # Split into chunks (Unicode aware using central tokenizer)
-        words = tokenize(text)
-        words = words[:1000] # Limit size
+            # Split into chunks (Unicode aware using central tokenizer)
+            from backend.utils import tokenize
+            words = tokenize(text)
+            words = words[:1000] # Limit size
             chunks = [words[i:i+64] for i in range(0, len(words), 64)]
             
             # Learn from each chunk
@@ -182,7 +185,8 @@ class DreamMode:
                 with self._ingested_chunks_lock:
                     should_train = False
                     if chunk_str not in self._ingested_chunks:
-                        self.rag.add_document(chunk, domain=domain)
+                        if self.rag:
+                            self.rag.add_document(chunk, domain=domain)
                         self._ingested_chunks.add(chunk_str)
                         should_train = True
                     
@@ -301,5 +305,6 @@ class DreamMode:
         chunks = [words[i:i+64] for i in range(0, len(words), 64)]
         for chunk in chunks:
             self.knowledge_base[domain].append(chunk)
-            self.rag.add_document(chunk, domain=domain)
+            if self.rag:
+                self.rag.add_document(chunk, domain=domain)
         self.progress[domain] = min(100, self.progress[domain] + 10)

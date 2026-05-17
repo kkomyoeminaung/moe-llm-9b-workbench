@@ -36,14 +36,14 @@ from contextlib import asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting MoE LLM Unified Backend")
-    # Trigger model and component load in background
+    # Trigger model load in background (RAG and Learner disabled per User Request)
     async def init_components():
         try:
-            get_rag()
+            # get_rag()
             get_model()
-            get_learner()
+            # get_learner()
         except Exception as e:
-            logger.error(f"Error during component initialization: {e}")
+            logger.error(f"Error during model initialization: {e}")
             
     asyncio.create_task(init_components())
     yield
@@ -76,15 +76,13 @@ def get_persistence_cached():
 
 def get_rag():
     global _rag
-    if _rag is None:
-        _rag = IntegratedRAG()
-    return _rag
+    # Disabled per user request to save RAM
+    return None
 
 def get_learner():
     global _learner
-    if _learner is None:
-        _learner = PersistentContinuousLearner()
-    return _learner
+    # Disabled per user request to save RAM
+    return None
 
 # Global variables (lazy loaded)
 _model = None
@@ -141,7 +139,7 @@ def get_orchestrator():
 class ChatRequest(BaseModel):
     message: Union[str, List[str]]
     system_prompt: Optional[str] = "You are a highly intelligent Mixture of Experts (MoE) Large Language Model. You provide accurate, helpful, detailed, and eloquent answers."
-    use_rag: bool = True
+    use_rag: bool = False
     use_web: bool = False
     stream: bool = False
     temperature: float = 0.1
@@ -191,18 +189,19 @@ async def chat_stream(req: ChatRequest):
         
         # 2. Context retrieval INSIDE generator to avoid blocking the initial stream
         context_str = ""
-        if req.use_rag:
-            try:
-                yield f"data: {json.dumps({'word': '🔍 [Diagnostic] Query reached RAG Engine. Searching knowledge base...\n', 'expert_id': 0, 'expert_name': 'RAG Engine'})}\n\n"
-                retrieved = await get_rag().retrieve(req.message, k=5, use_web=req.use_web)
-                if retrieved:
-                    context_str = "\n\nContext information:\n" + "\n".join([" ".join(c) for c in retrieved])
-                    yield f"data: {json.dumps({'word': '✅ [Diagnostic] Context integration complete. Routing to Expert...\n\n', 'expert_id': 0, 'expert_name': 'MoE System'})}\n\n"
-                else:
-                    yield f"data: {json.dumps({'word': 'ℹ️ [Diagnostic] No direct context found. Using general knowledge.\n\n', 'expert_id': 0, 'expert_name': 'MoE System'})}\n\n"
-            except Exception as e:
-                logger.error(f"RAG Retrieval Error: {e}")
-                yield f"data: {json.dumps({'word': '⚠️ [Diagnostic] RAG Engine encountered an error, falling back to pure LLM.\n\n', 'expert_id': 0, 'expert_name': 'MoE System'})}\n\n"
+        # RAG Disabled per User Request to focus on Core Chat Pipeline
+        # if req.use_rag:
+        #     try:
+        #         yield f"data: {json.dumps({'word': '🔍 [Diagnostic] Query reached RAG Engine. Searching knowledge base...\\n', 'expert_id': 0, 'expert_name': 'RAG Engine'})}\\n\\n"
+        #         retrieved = await get_rag().retrieve(req.message, k=5, use_web=req.use_web)
+        #         if retrieved:
+        #             context_str = "\\n\\nContext information:\\n" + "\\n".join([" ".join(c) for c in retrieved])
+        #             yield f"data: {json.dumps({'word': '✅ [Diagnostic] Context integration complete. Routing to Expert...\\n\\n', 'expert_id': 0, 'expert_name': 'MoE System'})}\\n\\n"
+        #         else:
+        #             yield f"data: {json.dumps({'word': 'ℹ️ [Diagnostic] No direct context found. Using general knowledge.\\n\\n', 'expert_id': 0, 'expert_name': 'MoE System'})}\\n\\n"
+        #     except Exception as e:
+        #         logger.error(f"RAG Retrieval Error: {e}")
+        #         yield f"data: {json.dumps({'word': '⚠️ [Diagnostic] RAG Engine encountered an error, falling back to pure LLM.\\n\\n', 'expert_id': 0, 'expert_name': 'MoE System'})}\\n\\n"
 
         # Construct Final Prompt
         user_query = " ".join(req.message)
@@ -354,22 +353,16 @@ async def chat(req: ChatRequest):
     orchestrator = get_orchestrator()
     is_ext = getattr(model, "is_external", False)
     
-    # RAG retrieval & Context Integration
-    if isinstance(req.message, str):
-        req.message = tokenize(req.message)
-    elif isinstance(req.message, list):
-        if len(req.message) == 1 and " " in req.message[0]:
-             req.message = tokenize(req.message[0])
-    
+    # RAG retrieval & Context Integration (Disabled per User Request)
+    # if req.use_rag:
+    #     try:
+    #         retrieved_chunks = await get_rag().retrieve(req.message, k=5, use_web=req.use_web)
+    #         if retrieved_chunks:
+    #             context_str = "\n\nContext information:\n" + "\n".join([" ".join(c) for c in retrieved_chunks])
+    #     except Exception as e:
+    #         print(f"RAG Retrieval Error: {e}")
     context_str = ""
     retrieved_chunks = []
-    if req.use_rag:
-        try:
-            retrieved_chunks = await get_rag().retrieve(req.message, k=5, use_web=req.use_web)
-            if retrieved_chunks:
-                context_str = "\n\nContext information:\n" + "\n".join([" ".join(c) for c in retrieved_chunks])
-        except Exception as e:
-            print(f"RAG Retrieval Error: {e}")
     
     user_query = " ".join(req.message)
     full_persona = req.system_prompt
@@ -426,7 +419,9 @@ async def upload_files(files: List[UploadFile] = File(...), domain: Optional[int
         content = await file.read()
         result = orchestrator.ingestion.process_upload(content, file.filename, domain=domain)
         results.append(result)
-        get_rag().save()
+        rag = get_rag()
+        if rag:
+            rag.save()
     return {"results": results}
 
 @app.get("/dream/status")

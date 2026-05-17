@@ -68,13 +68,13 @@ export default function App() {
   const [isSending, setIsSending] = useState(false);
   
   // Toggles
-  const [useRAG, setUseRAG] = useState(true);
+  const [useRAG, setUseRAG] = useState(false);
   const [temp, setTemp] = useState(0.1);
   const [topK, setTopK] = useState(40);
   const [maxTokens, setMaxTokens] = useState(1024);
   const [systemPrompt, setSystemPrompt] = useState('You are a highly intelligent Mixture of Experts (MoE) Large Language Model specialized in Software, Math, and Logic. Provide detailed, eloquent, and comprehensive answers.');
   const [streamEnabled, setStreamEnabled] = useState(true);
-  const [dreamEnabled, setDreamEnabled] = useState(true);
+  const [dreamEnabled, setDreamEnabled] = useState(false);
   
   // Statuses
   const [backendReady, setBackendReady] = useState(false);
@@ -108,7 +108,8 @@ export default function App() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // Polling for stats and dream status
+  // Polling for stats and dream status (Disabled per User Request to focus on Core Chat)
+  /*
   useEffect(() => {
     const poll = async () => {
       try {
@@ -156,6 +157,7 @@ export default function App() {
     activePoll();
     return () => clearTimeout(timerId);
   }, []);
+  */
 
   const handleSend = async () => {
     if (!input.trim() || isSending) return;

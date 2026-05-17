@@ -207,7 +207,8 @@ class KnowledgeIngestion:
         for chunk in chunks:
             if chunk:
                 chunk_domain = domain if domain is not None else self._detect_domain(chunk)
-                self.rag.add_document(chunk, domain=chunk_domain)
+                if self.rag:
+                    self.rag.add_document(chunk, domain=chunk_domain)
                 
                 # Optional: trigger continuous learning
                 if self.learner:
