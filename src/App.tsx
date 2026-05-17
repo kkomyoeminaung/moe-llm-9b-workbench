@@ -44,9 +44,16 @@ interface DreamStatus {
 
 interface ExpertUtil {
   expert_utilization: number[];
+  expert_names?: string[];
   device: string;
   status?: string;
   is_external?: boolean;
+  model_name?: string;
+  restore_info?: {
+    restored: boolean;
+    assets: string[];
+    time: number;
+  } | null;
 }
 
 export default function App() {
@@ -67,7 +74,7 @@ export default function App() {
   const [dreamEnabled, setDreamEnabled] = useState(true);
   
   // Statuses
-  const [backendReady, setBackendReady] = useState(true);
+  const [backendReady, setBackendReady] = useState(false);
   const [showLoading, setShowLoading] = useState(true);
   const [dreamStatus, setDreamStatus] = useState<DreamStatus | null>(null);
   const [stats, setStats] = useState<ExpertUtil | null>(null);
@@ -120,7 +127,11 @@ export default function App() {
           if (contentType && contentType.includes("application/json")) {
             const data = await statsRes.json();
             setStats(data);
-            if (data.status !== 'loading') {
+            if (data.status !== 'loading' && data.status !== 'mock') {
+               setBackendReady(true);
+               setShowLoading(false);
+            } else if (data.status === 'mock') {
+               // Mock mode: Allow enter but show warning elsewhere
                setBackendReady(true);
                setShowLoading(false);
             }
@@ -128,8 +139,6 @@ export default function App() {
         }
       } catch (e) {
         // Silently handle polling failure during initial startup
-        // DO NOT block UI
-        setShowLoading(false);
       }
     };
 
@@ -373,6 +382,23 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-6">
+            <div className="flex flex-col items-end mr-2">
+               <div className="flex items-center gap-1.5">
+                  {stats?.restore_info?.restored && (
+                    <motion.span 
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="text-[8px] bg-green-500/10 text-green-400 border border-green-500/30 px-1 rounded uppercase flex items-center gap-0.5"
+                    >
+                      <Zap size={8} className="fill-green-400" />
+                      Restored
+                    </motion.span>
+                  )}
+                  <span className="text-[10px] font-bold text-blue-400 font-mono tracking-tighter">{stats?.model_name || 'MOE_LLM_7B'}</span>
+               </div>
+               <span className="text-[9px] text-gray-600 font-mono uppercase">{stats?.device || 'CPU_CORE'}</span>
+            </div>
+            <div className="h-8 w-px bg-gray-800/50 mx-2" />
             <div className="flex items-center gap-4 border-r border-gray-800 pr-6">
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-gray-500 uppercase font-bold">Temp</span>
@@ -665,10 +691,11 @@ export default function App() {
                           {(stats?.expert_utilization || [0.45, 0.35, 0.20]).map((val, i) => (
                             <div key={i} className="space-y-1.5">
                               <div className="flex justify-between text-[11px]">
-                                <span className="text-gray-500 font-mono tracking-tighter">
-                                  {stats?.is_external ?? true ? 
-                                    (i === 0 ? "SOFTWARE_ENGINE" : i === 1 ? "MATH_ENGINE" : "LOGIC_SYSTEM") : 
-                                    `NEURAL_EXPERT_${i}`
+                                <span className="text-gray-500 font-mono tracking-tighter uppercase">
+                                  {stats?.expert_names?.[i] || 
+                                    (stats?.is_external ?? true ? 
+                                      (i === 0 ? "SOFTWARE_ENGINE" : i === 1 ? "MATH_ENGINE" : "LOGIC_SYSTEM") : 
+                                      `NEURAL_EXPERT_${i}`)
                                   }
                                 </span>
                                 <span className="text-gray-300 font-bold">{(val * 100).toFixed(1)}%</span>
@@ -683,6 +710,45 @@ export default function App() {
                               </div>
                             </div>
                           ))}
+                        </div>
+                     </section>
+
+                     <section className="bg-[#111114] border border-gray-800 rounded-2xl p-6">
+                        <div className="flex items-center justify-between mb-6">
+                           <div className="flex items-center gap-3">
+                              <Zap className="text-yellow-500" size={18} />
+                              <h3 className="font-bold text-gray-200">Neural Maturation</h3>
+                           </div>
+                           <span className="text-[10px] bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20 font-mono uppercase">
+                              Stage {dreamStatus?.current_stage || 0}
+                           </span>
+                        </div>
+                        <div className="space-y-4">
+                           <div className="flex justify-between items-center mb-1">
+                              <span className="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Curriculum Progress</span>
+                              <span className="text-[10px] text-blue-400 font-mono">
+                                 {Math.round(((dreamStatus?.current_stage || 0) / (dreamStatus?.total_stages || 10)) * 100)}%
+                              </span>
+                           </div>
+                           <div className="w-full bg-black h-1 rounded-full overflow-hidden">
+                              <motion.div 
+                                 initial={{ width: 0 }}
+                                 animate={{ width: `${((dreamStatus?.current_stage || 0) / (dreamStatus?.total_stages || 10)) * 100}%` }}
+                                 className="bg-blue-500 h-full shadow-[0_0_10px_rgba(59,130,246,0.3)]"
+                              />
+                           </div>
+                           
+                           {dreamStatus?.is_active && (
+                              <div className="mt-4 p-3 bg-blue-500/5 border border-blue-500/10 rounded-xl">
+                                 <div className="flex justify-between items-center mb-2">
+                                    <span className="text-[10px] text-gray-400 uppercase tracking-widest animate-pulse">Dreaming: {dreamStatus.stage_name}</span>
+                                    <Activity size={10} className="text-blue-400 animate-bounce" />
+                                 </div>
+                                 <div className="text-[9px] text-gray-600 font-mono leading-tight">
+                                    Idle time learning active. Synthesis engine expanding specialized expert weights via curriculum.
+                                 </div>
+                              </div>
+                           )}
                         </div>
                      </section>
                   </div>

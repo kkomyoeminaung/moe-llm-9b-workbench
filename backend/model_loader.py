@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).parent.parent / "training"))
 from config import (
     DEVICE, VOCAB_SIZE, EMBED_DIM, NUM_EXPERTS, EXPERT_LAYERS, HIDDEN_DIM, CONTEXT_LEN,
-    USE_EXTERNAL_MODEL, EXTERNAL_MODEL_PATH, QUANTIZATION, HF_TOKEN
+    USE_EXTERNAL_MODEL, EXTERNAL_MODEL_PATH, QUANTIZATION, HF_TOKEN, MY_WEIGHTS_URL
 )
 from model_unified import SparseMoE_Unified
 

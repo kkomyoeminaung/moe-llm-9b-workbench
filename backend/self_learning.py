@@ -191,23 +191,44 @@ class SelfLearningSystem:
                 
             loss_value = 0.0
             # Perform correction learning
-            if self.model and hasattr(self.model, 'experts'):
+            is_ext = getattr(self.model, "is_external", False)
+            if self.model and (hasattr(self.model, 'experts') or is_ext):
                 with self._model_lock:
                     if not hasattr(self, '_correction_optimizer'):
                         import torch.optim as optim
-                        self._correction_optimizer = optim.AdamW(self.model.parameters(), lr=1e-4)
+                        trainable_params = [p for p in self.model.parameters() if p.requires_grad]
+                        if not trainable_params:
+                            return False # Cannot train if no params have requires_grad
+                        self._correction_optimizer = optim.AdamW(trainable_params, lr=1e-4)
 
                     self.model.train()
                     self._correction_optimizer.zero_grad()
                     
-                    # Forward pass
-                    outputs, _ = self.model(input_ids)
-                    
-                    # Target preparation with correct device
-                    device = outputs.device
-                    target_tensor = torch.tensor([target_id], device=device)
-                    
-                    loss = F.cross_entropy(outputs, target_tensor)
+                    if is_ext:
+                        tokenizer = self.model.adapter.tokenizer
+                        prompt = " ".join(input_words)
+                        text = f"{prompt} {target_output}"
+                        inputs = tokenizer(text, return_tensors="pt", max_length=128, truncation=True)
+                        device = next(self.model.parameters()).device
+                        inputs = {k: v.to(device) for k, v in inputs.items()}
+                        inputs["labels"] = inputs["input_ids"].clone()
+                        
+                        outputs = self.model.adapter.model(**inputs)
+                        loss = outputs.loss
+                    else:
+                        # Forward pass
+                        outputs, _ = self.model(input_ids)
+                        
+                        # Target preparation with correct device
+                        device = outputs.device
+                        target_tensor = torch.tensor([target_id], device=device)
+                        
+                        if outputs.dim() == 3:
+                            logits = outputs[:, -1, :]
+                        else:
+                            logits = outputs
+                            
+                        loss = F.cross_entropy(logits, target_tensor)
                     
                     # Backward pass
                     loss.backward()

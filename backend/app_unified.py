@@ -63,18 +63,19 @@ _orchestrator = None
 _vocab = None
 _word_to_idx = None
 _is_loading = False
+_model_lock = threading.Lock()
 
 def get_model():
     global _model, _is_loading
     if _model is None:
-        if _is_loading:
-            return None # Still loading in background
-        _is_loading = True
-        try:
-            from backend.model_loader import get_model as loader_get_model
-            _model = loader_get_model()
-        finally:
-            _is_loading = False
+        with _model_lock:
+            if _model is None and not _is_loading:
+                _is_loading = True
+                try:
+                    from backend.model_loader import get_model as loader_get_model
+                    _model = loader_get_model()
+                finally:
+                    _is_loading = False
     return _model
 
 def get_orchestrator():
@@ -152,9 +153,11 @@ async def chat_stream(req: ChatRequest):
                 max_new_tokens=req.max_tokens, 
                 temperature=req.temperature
             ))
+            final_text = ""
             while True:
                 try:
                     token = await asyncio.to_thread(next, iterator)
+                    final_text += token
                     yield json.dumps({
                         "word": token,
                         "expert_id": 0,
@@ -162,11 +165,15 @@ async def chat_stream(req: ChatRequest):
                     }) + "\n"
                 except StopIteration:
                     break
+            
+            get_orchestrator().record_chat_interaction(req.message, final_text, 0, 0.95)
             return
 
         # Original Custom MoE Logic
-        ids = torch.tensor([[get_word_id(w) for w in prompt_text.split()[-CONTEXT_LEN:]]]).long().to(DEVICE)
+        ids = torch.tensor([[get_word_id(w) for w in user_query.split()[-CONTEXT_LEN:]]]).long().to(DEVICE)
         model.eval()
+        final_text = ""
+        avg_confidence = 0.0
         with torch.no_grad():
             for i in range(50): # Max stream length
                 outputs, expert_id = model(ids)
@@ -179,7 +186,12 @@ async def chat_stream(req: ChatRequest):
                 sampled = torch.multinomial(top_p, 1).item()
                 predicted_id = top_i[sampled].item()
                 
+                # Confidence tracking
+                conf = torch.max(probs).item()
+                avg_confidence = (avg_confidence * i + conf) / (i + 1)
+                
                 word = vocab.get(str(predicted_id), "unknown")
+                final_text += word + " "
                 
                 yield json.dumps({
                     "word": word,
@@ -193,6 +205,8 @@ async def chat_stream(req: ChatRequest):
                 new_id = torch.tensor([[predicted_id]]).long().to(DEVICE)
                 ids = torch.cat([ids, new_id], dim=1)[:, -CONTEXT_LEN:]
                 await asyncio.sleep(0.01)
+                
+        get_orchestrator().record_chat_interaction(req.message, final_text.strip(), expert_id.item(), avg_confidence)
 
     return StreamingResponse(generate(), media_type="application/json")
 
@@ -280,7 +294,22 @@ async def upload_files(files: List[UploadFile] = File(...), domain: Optional[int
 @app.get("/dream/status")
 async def get_dream_status():
     orchestrator = get_orchestrator()
+    if orchestrator is None:
+        return {
+            "is_active": False,
+            "current_stage": 0,
+            "total_stages": 10,
+            "stage_name": "Initializing Model...",
+            "idle_time": 0,
+            "idle_threshold": 60,
+            "progress": []
+        }
     status = orchestrator.dream.get_status()
+    # Convert progress dict to sorted list for frontend
+    if isinstance(status.get("progress"), dict):
+        prog_dict = status["progress"]
+        status["progress"] = [prog_dict.get(str(i), prog_dict.get(i, 0)) for i in range(10)]
+    
     # Ensure total_stages is present for frontend progress bar
     status["total_stages"] = len(orchestrator.dream.curriculum) if hasattr(orchestrator.dream, 'curriculum') else 10
     return status
@@ -288,30 +317,39 @@ async def get_dream_status():
 @app.post("/dream/start")
 async def start_dream():
     orchestrator = get_orchestrator()
+    if orchestrator is None:
+        raise HTTPException(status_code=503, detail="Model is still loading")
     orchestrator.dream.start()
     return {"status": "started"}
 
 @app.post("/dream/stop")
 async def stop_dream():
     orchestrator = get_orchestrator()
+    if orchestrator is None:
+        return {"status": "already stopped"}
     orchestrator.dream.stop()
     return {"status": "stopped"}
 
 @app.post("/dream/activity")
 async def activity():
     orchestrator = get_orchestrator()
-    orchestrator.dream.record_activity()
+    if orchestrator:
+        orchestrator.dream.record_activity()
     return {"status": "ok"}
 
 @app.post("/dream/threshold")
 async def set_threshold(body: dict):
     orchestrator = get_orchestrator()
-    orchestrator.dream.set_threshold(body.get("threshold", 60))
-    return {"status": "updated"}
+    if orchestrator:
+        orchestrator.dream.set_threshold(body.get("threshold", 60))
+        return {"status": "updated"}
+    return {"status": "skipped"}
 
 @app.post("/build")
 async def build_software(req: BuildRequest):
     orchestrator = get_orchestrator()
+    if orchestrator is None:
+        raise HTTPException(status_code=503, detail="Architect Engine is still loading")
     result = orchestrator.build_software(req.project_name, req.requirements)
     return result
 
@@ -360,22 +398,40 @@ async def get_stats():
         n_experts = 1 # Dense models are treated as 1 expert in the UI
 
     util = model.get_expert_utilization()
+    expert_names = DOMAINS
+    
     if isinstance(util, dict):
         # Handle dict-based expert names from external model
-        n_experts = len(util)
+        expert_names = list(util.keys())
         processed_util = list(util.values())
+        n_experts = len(processed_util)
     else:
         if torch.is_tensor(util):
             util = util.tolist()
         processed_util = util
+        # Ensure we don't have more utils than names
+        expert_names = DOMAINS[:len(processed_util)]
+
+    # Check for restoration status
+    restore_info = None
+    restore_file = Path("data/restore_status.json")
+    if restore_file.exists():
+        try:
+            with open(restore_file, "r") as f:
+                restore_info = json.load(f)
+        except:
+            pass
 
     return {
         "expert_utilization": processed_util,
+        "expert_names": expert_names,
         "vocab_size": v_size,
         "num_experts": n_experts,
         "device": str(DEVICE),
         "is_external": is_ext,
-        "model_name": model_name
+        "model_name": model_name,
+        "status": "active",
+        "restore_info": restore_info
     }
 
 if __name__ == "__main__":

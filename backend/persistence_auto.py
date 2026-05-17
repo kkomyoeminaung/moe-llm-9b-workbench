@@ -3,7 +3,11 @@ import os
 import json
 import pickle
 import sqlite3
-import faiss
+try:
+    import faiss
+except ImportError:
+    print("⚠️ FAISS not installed. RAG will be disabled.")
+    faiss = None
 import torch
 import numpy as np
 from pathlib import Path
@@ -15,10 +19,25 @@ import atexit
 class AutoPersistence:
     def __init__(self, project_name: str = "moe-llm"):
         self.project_name = project_name
-        self.is_lightning = bool(os.environ.get('LIGHTNING_CLOUD', False))
         
-        # Paths
-        self.data_dir = Path("data")
+        # Detect environment
+        self.is_lightning = bool(os.environ.get('LIGHTNING_CLOUD', False))
+        self.is_kaggle = os.path.exists('/kaggle/working')
+        self.is_colab = os.path.exists('/content')
+        
+        # Setup paths
+        if self.is_lightning:
+            self.data_dir = Path("/teamspace/studios/this_studio/data")
+        elif self.is_kaggle:
+            self.data_dir = Path("/kaggle/working/data")
+        elif self.is_colab:
+            if os.path.exists('/content/drive'):
+                self.data_dir = Path(f"/content/drive/MyDrive/{project_name}")
+            else:
+                self.data_dir = Path("/content/data")
+        else:
+            self.data_dir = Path("data")
+            
         self.rag_dir = self.data_dir / "rag"
         self.memory_dir = self.data_dir / "memory"
         self.checkpoint_dir = self.data_dir / "checkpoints"

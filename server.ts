@@ -131,7 +131,7 @@ async function startServer() {
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive'
       });
-      const text = "Hi there! I am currently running in **Preview Mode** without the Python backend. The React frontend is working perfectly, but to use the actual PyTorch MoE engine, please deploy this using **Google Colab** or **Kaggle** as described in the documentation.";
+      const text = "System is starting up... (PyTorch engine loading). Please copy your Session IP as the 'Tunnel Password' if requested. This usually takes 2-5 minutes in Colab/Kaggle environments.";
       const words = text.split(' ');
       let i = 0;
       const interval = setInterval(() => {

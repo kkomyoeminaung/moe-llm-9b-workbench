@@ -19,14 +19,27 @@ class LightningPersistence:
     def __init__(self, project_name: str = "moe-llm"):
         self.project_name = project_name
         
-        # Detect Lightning AI environment
+        # Detect environment
         self.is_lightning = os.environ.get('LIGHTNING_CLOUD', False)
+        self.is_kaggle = os.path.exists('/kaggle/working')
+        self.is_colab = os.path.exists('/content')
         
         # Setup paths
         if self.is_lightning:
             # Lightning AI cloud storage
             self.base_path = Path(f"lit://{project_name}")
             self.local_cache = Path("/teamspace/studios/this_studio/cache")
+        elif self.is_kaggle:
+            # Kaggle working directory is persistent if saved
+            self.base_path = Path("/kaggle/working/data")
+            self.local_cache = Path("/kaggle/working/data/cache")
+        elif self.is_colab:
+            # If Google Drive is mounted, we prefer it
+            if os.path.exists('/content/drive'):
+                self.base_path = Path(f"/content/drive/MyDrive/{project_name}")
+            else:
+                self.base_path = Path("/content/data")
+            self.local_cache = Path("/content/data/cache")
         else:
             # Local development
             self.base_path = Path("data")

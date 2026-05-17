@@ -54,6 +54,7 @@ class DreamMode:
         self.dream_enabled = True # Master switch
         self._model_lock = shared_lock
         self._ingested_chunks_lock = threading.Lock()
+        self._ingested_chunks = set()
         
         # Background monitor thread
         self.monitor_thread = threading.Thread(target=self._monitor_idle)
@@ -178,8 +179,6 @@ class DreamMode:
                 
                 # Update RAG if not already present
                 chunk_str = " ".join(chunk).strip()
-                if not hasattr(self, '_ingested_chunks'):
-                    self._ingested_chunks = set()
                 
                 with self._ingested_chunks_lock:
                     should_train = False
@@ -221,33 +220,48 @@ class DreamMode:
             return
 
         try:
-            # Prepare data
-            input_ids = [self._get_word_id(w) for w in words[:-1]]
-            target_id = self._get_word_id(words[-1])
-            
             device = next(self.model.parameters()).device
-            word_ids = torch.tensor([input_ids[:128]]).long().to(device)
-            targets = torch.tensor([target_id]).long().to(device)
+            is_ext = getattr(self.model, "is_external", False)
             
             with self._model_lock:
                 self.model.train()
-                outputs, _ = self.model(word_ids)
                 
-                # outputs can be [batch, seq_len, vocab_size]. We only need the last token prediction.
-                if outputs.dim() == 3:
-                    logits = outputs[:, -1, :]
+                if is_ext:
+                    text = " ".join(words)
+                    tokenizer = self.model.adapter.tokenizer
+                    inputs = tokenizer(text, return_tensors="pt", max_length=128, truncation=True)
+                    inputs = {k: v.to(device) for k, v in inputs.items()}
+                    inputs["labels"] = inputs["input_ids"].clone()
+                    
+                    outputs = self.model.adapter.model(**inputs)
+                    loss = outputs.loss
                 else:
-                    logits = outputs
-                
-                # Use scalar target for CrossEntropy
-                loss = F.cross_entropy(logits, targets)
+                    # Prepare data
+                    input_ids = [self._get_word_id(w) for w in words[:-1]]
+                    target_id = self._get_word_id(words[-1])
+                    word_ids = torch.tensor([input_ids[:128]]).long().to(device)
+                    targets = torch.tensor([target_id]).long().to(device)
+                    
+                    outputs, _ = self.model(word_ids)
+                    
+                    # outputs can be [batch, seq_len, vocab_size]. We only need the last token prediction.
+                    if outputs.dim() == 3:
+                        logits = outputs[:, -1, :]
+                    else:
+                        logits = outputs
+                    
+                    # Use scalar target for CrossEntropy
+                    loss = F.cross_entropy(logits, targets)
                 
                 loss.backward()
                 
                 # Shared optimizer or local one
                 if not hasattr(self, '_dream_optimizer'):
                     import torch.optim as optim
-                    self._dream_optimizer = optim.AdamW(self.model.parameters(), lr=1e-5)
+                    trainable_params = [p for p in self.model.parameters() if p.requires_grad]
+                    if not trainable_params:
+                        return
+                    self._dream_optimizer = optim.AdamW(trainable_params, lr=1e-5)
                 
                 # Optional: norm clipping for stability during "dreaming"
                 torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
