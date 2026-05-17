@@ -19,6 +19,8 @@ import {
   HelpCircle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
 const API_URL = '/api';
 
@@ -489,7 +491,15 @@ export default function App() {
                           </span>
                         </div>
                       )}
-                      <p className="text-[15px] leading-relaxed whitespace-pre-wrap">{msg.content}</p>
+                      {msg.role === 'bot' || msg.role === 'system' ? (
+                        <div className="prose prose-invert prose-sm max-w-none text-[15px] leading-relaxed break-words">
+                          <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {msg.content}
+                          </ReactMarkdown>
+                        </div>
+                      ) : (
+                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                      )}
                     </div>
                   </motion.div>
                 ))}
@@ -837,20 +847,28 @@ export default function App() {
                     <div className="bg-[#1a1a24] p-5 rounded-xl border border-gray-700">
                       <h3 className="font-bold text-white mb-3 text-base flex items-center gap-2">
                         <span className="bg-cyan-500/20 text-cyan-400 p-1.5 rounded-md text-xs">Kaggle</span>
-                        အတွက် အဆင့်များ:
+                        အတွက် အဆင့်များ (Github မှ ယူ၍ Run ခြင်း):
                       </h3>
                       <ol className="list-decimal list-outside ml-4 space-y-3">
                         <li className="pl-2">
-                          <a href="https://www.kaggle.com/" target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 underline underline-offset-4">Kaggle</a> သို့ ဝင်ပါ။
+                          <a href="https://www.kaggle.com/" target="_blank" rel="noreferrer" className="text-blue-400 hover:text-blue-300 underline underline-offset-4">Kaggle</a> ကို ဖွင့်၍ <strong>Create → New Notebook</strong> ကို နှိပ်ပါ။
                         </li>
                         <li className="pl-2">
-                          <strong>Create → New Notebook</strong> နှိပ်ပြီး <strong>File → Import Notebook</strong> ဖြင့် <code>MoE_Workbench_Colab.ipynb</code> ကို တင်ပါ။
+                          ညာဘက်ခြမ်းရှိ <strong>Settings (မီနူး)</strong> အောက်မှ <strong>Accelerator</strong> ကို <strong>GPU T4 x2</strong> သို့ ပြောင်းပါ။
                         </li>
                         <li className="pl-2">
-                          ညာဘက်ခြမ်းရှိ <strong>Settings</strong> panel တွင် <strong>Accelerator</strong> ကို <strong>GPU T4 x2</strong> သို့ ပြောင်းပါ။
+                          <strong>Internet Options</strong> ကို <strong>Internet on</strong> အဖြစ် ဖွင့်ထားရန် မဖြစ်မနေ လိုအပ်ပါသည်။
                         </li>
                         <li className="pl-2">
-                          <strong>Internet</strong> ဖွင့်ထားရန် လိုအပ်ပါသည်။ ထို့နောက် <strong>Run All</strong> ကို နှိပ်၍ အသုံးပြုနိုင်ပါသည်။
+                          Notebook ရဲ့ Cell ထဲတွင် အောက်ပါကုဒ်များကို ရိုက်ထည့်ပြီး <strong>Run (Shift+Enter)</strong> ကို နှိပ်ပါ။
+                          <div className="bg-black/50 p-3 mt-2 rounded-lg border border-gray-800 font-mono text-xs text-green-300 break-all">
+                            !git clone [သင့် Github Repo URL]<br/>
+                            %cd [Folder နာမည်]<br/>
+                            !python run_kaggle.py
+                          </div>
+                        </li>
+                        <li className="pl-2">
+                          Output အောက်တွင်ပေါ်လာသော <strong>Your Session IP (Tunnel Password)</strong> ကို ကူးယူထားပြီး ပေးထားသော လင့်ခ်သို့ ဝင်ရောက်စစ်ဆေးပါ။
                         </li>
                       </ol>
                     </div>

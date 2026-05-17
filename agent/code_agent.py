@@ -86,30 +86,62 @@ class CodeAgent:
             context = f"Task: {task}. File: {filename}. Generate python code."
             # In a real MoE agent, we'd call the specifically trained expert
             # Here we use the generic generation logic
-            content = self._generate_with_model(context)
+            content = self._generate_with_model(context, filename)
             if filename == "requirements.txt" and not content.strip():
                 content = "requests\n"
             files[filename] = content
         
         return files
 
-    def _generate_with_model(self, prompt: str) -> str:
+    def _generate_with_model(self, prompt: str, filename: str) -> str:
         """Helper to generate text using the MoE model"""
         if not self.model:
+            if filename == "requirements.txt":
+                return "requests\npydantic\n"
             return "# Model unavailable. Generic placeholder."
             
         try:
-            vocab = get_vocab()
-            # Generate a reasonable amount of code
-            result = generate_text(
-                self.model, vocab, prompt.split(), 
-                max_new_words=100, temperature=0.5, top_k=20
-            )
-            return result["text"]
+            is_ext = getattr(self.model, "is_external", False)
+            if is_ext:
+                messages = [
+                    {"role": "system", "content": f"You are an expert Python software architect. Write complete, correct, and runnable code for '{filename}'. Output ONLY valid source code. Do not wrap in markdown ``` markers. No explanations."},
+                    {"role": "user", "content": prompt}
+                ]
+                content = self.model.adapter.generate(messages, max_new_tokens=1024, temperature=0.2)
+                # Cleanup markdown blocks if the model generated them anyway
+                if content.startswith("```"):
+                    lines = content.split('\n')
+                    if lines[0].startswith("```"):
+                        lines = lines[1:]
+                    if lines[-1].startswith("```"):
+                        lines = lines[:-1]
+                    content = "\n".join(lines)
+                return content
+            else:
+                vocab = get_vocab()
+                result = generate_text(
+                    self.model, vocab, prompt.split(), 
+                    max_new_words=200, temperature=0.5, top_k=20
+                )
+                return result["text"]
         except Exception as e:
+            if filename == "requirements.txt":
+                return "requests\npydantic\n"
             return f"# Placeholder for {prompt}. Error: {e}"
 
     def _debug_files(self, current_files: Dict, error_msg: str) -> Dict:
-        """Placeholder for self-correction logic"""
-        # Real logic would use the error_msg to fix the specific file
-        return current_files
+        """Self-correcting code generation using execution errors"""
+        print(f"🛠️ Attempting to fix code. Error: {error_msg.strip()[-200:]}")
+        fixed_files = {}
+        for filename, content in current_files.items():
+            if filename == "requirements.txt":
+                fixed_files[filename] = content
+                continue
+                
+            prompt = f"The following '{filename}' generated an error during execution:\n\n```python\n{content}\n```\n\nERROR TRACE:\n{error_msg}\n\nProvide the completely fixed source code for '{filename}'. Output ONLY valid source code. No explanations. Do not wrap in markdown ``` markers."
+            
+            # Use external model or custom model
+            fixed_content = self._generate_with_model(prompt, filename)
+            fixed_files[filename] = fixed_content
+            
+        return fixed_files

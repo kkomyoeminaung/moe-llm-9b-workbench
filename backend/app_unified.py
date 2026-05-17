@@ -146,18 +146,22 @@ async def chat_stream(req: ChatRequest):
 
     async def generate():
         if is_ext:
-            # True token-by-token streaming
-            for token in model.adapter.stream_generate(
+            # True token-by-token streaming, non-blocking via asyncio.to_thread
+            iterator = iter(model.adapter.stream_generate(
                 messages, 
                 max_new_tokens=req.max_tokens, 
                 temperature=req.temperature
-            ):
-                yield json.dumps({
-                    "word": token,
-                    "expert_id": 0,
-                    "expert_name": display_name
-                }) + "\n"
-                await asyncio.sleep(0.01)
+            ))
+            while True:
+                try:
+                    token = await asyncio.to_thread(next, iterator)
+                    yield json.dumps({
+                        "word": token,
+                        "expert_id": 0,
+                        "expert_name": display_name
+                    }) + "\n"
+                except StopIteration:
+                    break
             return
 
         # Original Custom MoE Logic

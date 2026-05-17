@@ -18,6 +18,9 @@ async function startServer() {
       const backend = spawn("python", ["backend/app_unified.py"]);
       backend.stdout.on("data", (data) => console.log(`[Backend] ${data}`));
       backend.stderr.on("data", (data) => console.error(`[Backend Error] ${data}`));
+      backend.on("error", (err) => {
+        console.error("❌ Failed to start python backend:", err.message);
+      });
     } else {
       console.log("ℹ️ External Backend Mode: Proxying to port 8080. (Use START_BACKEND=true to run locally)");
     }
@@ -120,6 +123,70 @@ async function startServer() {
 
   const backendTarget = process.env.BACKEND_URL || 'http://127.0.0.1:8080';
 
+  // Mock response fallback function
+  function serveMockResponse(req: any, res: any) {
+    if (req.url === '/chat/stream') {
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      });
+      const text = "Hi there! I am currently running in **Preview Mode** without the Python backend. The React frontend is working perfectly, but to use the actual PyTorch MoE engine, please deploy this using **Google Colab** or **Kaggle** as described in the documentation.";
+      const words = text.split(' ');
+      let i = 0;
+      const interval = setInterval(() => {
+        if (i >= words.length) {
+          clearInterval(interval);
+          res.end();
+          return;
+        }
+        res.write(JSON.stringify({
+          word: words[i] + ' ',
+          expert_id: 0,
+          expert_name: "Mock AI (Preview Context)"
+        }) + '\n');
+        i++;
+      }, 50);
+      return;
+    }
+
+    if (req.url === '/stats') {
+      return res.status(200).json({
+        status: "mock",
+        expert_utilization: [0.33, 0.33, 0.34],
+        vocab_size: 32000,
+        num_experts: 3,
+        device: "cpu (mock)",
+        is_external: true,
+        model_name: "AI Studio Preview (No Backend)"
+      });
+    }
+
+    if (req.url === '/dream/status') {
+      return res.status(200).json({
+        is_active: false,
+        current_stage: 1,
+        total_stages: 10,
+        stage_name: "Idle (Mock)",
+        idle_time: 0,
+        idle_threshold: 60,
+        progress: []
+      });
+    }
+
+    if (req.url === '/chat') {
+      return res.status(200).json({
+        response: "The Python backend is not running in this environment. Please run the Kaggle/Colab notebook.",
+        expert_used: 0,
+        expert_name: "System",
+        confidence: 1.0,
+        sources: []
+      });
+    }
+
+    return res.status(503).json({ error: 'Backend service unavailable', details: 'No python backend found' });
+  }
+
   // Keep proxy for other routes just in case
   app.use(
     '/api',
@@ -130,10 +197,12 @@ async function startServer() {
         '^/api': '', 
       },
       on: {
+        proxyReq: (proxyReq, req, res) => {
+           // Optionally do something before passing
+        },
         error: (err, req, res) => {
-          console.error('Proxy Error:', err);
-          // @ts-ignore
-          res.status(503).json({ error: 'Backend service unavailable', details: err.message });
+          console.log(`⚠️ Backend unreachable (${err.message}), serving mock for ${req.url}`);
+          serveMockResponse(req, res);
         }
       }
     })

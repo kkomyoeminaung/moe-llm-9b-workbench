@@ -35,6 +35,7 @@ exports/
 *.ckpt
 tokenizer/
 rag_index/
+checkpoints/
 faiss.index
 chunks.pkl
 metadata.db
