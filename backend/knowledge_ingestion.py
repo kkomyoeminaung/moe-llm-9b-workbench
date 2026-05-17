@@ -31,6 +31,8 @@ except ImportError:
     print("⚠️ BeautifulSoup not installed. HTML support disabled.")
 
 
+from backend.utils import tokenize
+
 class KnowledgeIngestion:
     """Process uploaded files (ZIP, PDF, WORD, TXT, HTML) into RAG"""
     
@@ -192,7 +194,7 @@ class KnowledgeIngestion:
     def _process_text_content(self, text: str, domain: int = None) -> tuple:
         """Split text into chunks and add to RAG"""
         # Split into words (Unicode aware for Myanmar etc)
-        words = re.findall(r'[\w\u1000-\u109F]+', text.lower(), flags=re.UNICODE)
+        words = tokenize(text)
         
         if not words:
             return 0, 0

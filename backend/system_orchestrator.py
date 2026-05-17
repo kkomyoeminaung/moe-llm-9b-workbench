@@ -22,7 +22,7 @@ class SystemOrchestrator:
         # Shared training lock
         self.model_lock = threading.Lock()
         
-        self.dream = DreamMode(model, self.learner, self.rag, self.model_lock)
+        self.dream = DreamMode(model, self.learner, self.rag, self.model_lock, enabled=self.ENABLE_DREAM)
         self.ingestion = KnowledgeIngestion(self.rag, self.learner, model)
         self.self_learning = SelfLearningSystem(model, self.learner, self.rag, self.vocab, self.model_lock)
         
@@ -33,9 +33,9 @@ class SystemOrchestrator:
     def record_chat_interaction(self, input_words, output_word, expert_id, confidence):
         self.learner.store_episode(input_words, output_word, expert_id, confidence)
         
-        if self.ENABLE_DREAM:
-            self.dream.record_activity()
-            
+        # Always record activity to keep the idle timer updated
+        self.dream.record_activity()
+        
         if self.ENABLE_SELF_LEARNING:
             self.self_learning.record_interaction(input_words, output_word, expert_id, confidence)
 

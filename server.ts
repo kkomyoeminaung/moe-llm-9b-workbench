@@ -181,7 +181,19 @@ async function startServer() {
       },
       on: {
         proxyReq: (proxyReq, req, res) => {
-           // Optionally do something before passing
+           if (req.url?.includes('/chat/stream')) {
+             // Disable buffering for streaming routes
+             proxyReq.setHeader('Connection', 'keep-alive');
+             proxyReq.setHeader('Cache-Control', 'no-cache');
+           }
+        },
+        proxyRes: (proxyRes, req, res) => {
+          if (req.url?.includes('/chat/stream')) {
+            // Ensure no buffering in intermediate proxies
+            res.setHeader('X-Accel-Buffering', 'no');
+            res.setHeader('Cache-Control', 'no-cache');
+            res.setHeader('Connection', 'keep-alive');
+          }
         },
         error: (err, req, res) => {
           console.log(`⚠️ Backend unreachable (${err.message}), serving mock for ${req.url}`);

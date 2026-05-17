@@ -128,14 +128,19 @@ class MoE7B_ArchitecturalEngine(nn.Module):
             return_tensors="pt"
         ).to(DEVICE)
 
+        eos_id = self.tokenizer.eos_token_id
+        pad_id = self.tokenizer.pad_token_id
+        if pad_id is None and eos_id is not None:
+            pad_id = eos_id[0] if isinstance(eos_id, list) else eos_id
+
         outputs = self.model.generate(
             input_ids, 
             max_new_tokens=max_new_tokens, 
             temperature=temperature,
             repetition_penalty=1.1,
             do_sample=True if temperature > 0 else False,
-            pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id
+            pad_token_id=pad_id,
+            eos_token_id=eos_id
         )
         
         # Decode only the newly generated tokens
@@ -168,13 +173,21 @@ class MoE7B_ArchitecturalEngine(nn.Module):
             repetition_penalty=1.1,
             do_sample=True if temperature > 0 else False
         )
-        if self.tokenizer.pad_token_id is not None:
-            generation_kwargs['pad_token_id'] = self.tokenizer.pad_token_id
-        elif self.tokenizer.eos_token_id is not None:
-            generation_kwargs['pad_token_id'] = self.tokenizer.eos_token_id
-
-        if self.tokenizer.eos_token_id is not None:
-            generation_kwargs['eos_token_id'] = self.tokenizer.eos_token_id
+        
+        eos_id = self.tokenizer.eos_token_id
+        pad_id = self.tokenizer.pad_token_id
+        
+        # Ensure pad_id is a single integer
+        if pad_id is None and eos_id is not None:
+            if isinstance(eos_id, list):
+                pad_id = eos_id[0]
+            else:
+                pad_id = eos_id
+            
+        if pad_id is not None:
+            generation_kwargs['pad_token_id'] = pad_id
+        if eos_id is not None:
+            generation_kwargs['eos_token_id'] = eos_id
 
         def threaded_generate():
             try:

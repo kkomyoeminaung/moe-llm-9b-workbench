@@ -49,6 +49,9 @@ interface ExpertUtil {
   status?: string;
   is_external?: boolean;
   model_name?: string;
+  perf_status?: string;
+  cpu_load?: number;
+  ram_load?: number;
   restore_info?: {
     restored: boolean;
     assets: string[];
@@ -187,11 +190,12 @@ export default function App() {
         const reader = response.body?.getReader();
         if (!reader) throw new Error("No reader");
 
-        setMessages(prev => [...prev, { role: 'bot', content: '', expert_name: 'Analyzing...' }]);
-        
         let fullContent = '';
         let lastExpert = 'Analyzing...';
         let lastConfidence = 0;
+        
+        // Add placeholder message for bot response
+        setMessages(prev => [...prev, { role: 'bot', content: '', expert_name: 'Analyzing...' }]);
         let buffer = '';
         
         // Use a throttle for UI updates to prevent lag
@@ -207,10 +211,14 @@ export default function App() {
           buffer = lines.pop() || '';
           
           for (const line of lines) {
-            if (!line.trim() || !line.startsWith('data: ')) continue;
+            const trimmedLine = line.trim();
+            if (!trimmedLine || !trimmedLine.startsWith('data: ')) continue;
+            
             try {
-              const rawData = line.replace(/^data:\s*/, '');
-              const data = JSON.parse(rawData);
+              const jsonStr = trimmedLine.substring(5).trim(); // Skip "data:" and trim spaces
+              if (jsonStr === '[DONE]') break;
+              
+              const data = JSON.parse(jsonStr);
               fullContent += (data.word || '');
               lastExpert = data.expert_name || lastExpert;
               lastConfidence = data.confidence || lastConfidence;
@@ -249,10 +257,17 @@ export default function App() {
         await fetch(`${API_URL}/dream/activity`, { method: 'POST' });
         return;
       } catch (e) {
-        setMessages(prev => [...prev, { 
-          role: 'system', 
-          content: '⚠️ Backend engine unreachable. Please ensure the PyTorch server is running (port 8080) and GPU is enabled if using a 7B model.' 
-        }]);
+        // Remove the empty bot message if it was added
+        setMessages(prev => {
+          const filtered = [...prev];
+          if (filtered.length > 0 && filtered[filtered.length - 1].role === 'bot' && !filtered[filtered.length - 1].content) {
+            filtered.pop();
+          }
+          return [...filtered, { 
+            role: 'system', 
+            content: '⚠️ Backend engine unreachable. Please ensure the PyTorch server is running (port 8080) and GPU is enabled if using a 7B model.' 
+          }];
+        });
         setIsSending(false);
         return;
       }
@@ -415,19 +430,21 @@ export default function App() {
           <div className="flex items-center gap-6">
             <div className="flex flex-col items-end mr-2">
                <div className="flex items-center gap-1.5">
-                  {stats?.restore_info?.restored && (
-                    <motion.span 
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      className="text-[8px] bg-green-500/10 text-green-400 border border-green-500/30 px-1 rounded uppercase flex items-center gap-0.5"
-                    >
-                      <Zap size={8} className="fill-green-400" />
-                      Restored
-                    </motion.span>
+                  {stats?.status === 'active' && (
+                    <span className={`text-[8px] px-1 rounded uppercase flex items-center gap-0.5 ${
+                      stats.perf_status?.includes('Critical') ? 'bg-red-500/10 text-red-400 border border-red-500/30' : 
+                      stats.perf_status?.includes('Reduced') ? 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/30' :
+                      'bg-green-500/10 text-green-400 border border-green-500/30'
+                    }`}>
+                      {stats.perf_status?.split('(')[0].trim() || 'Stable'}
+                    </span>
                   )}
                   <span className="text-[10px] font-bold text-blue-400 font-mono tracking-tighter">{stats?.model_name || 'MOE_LLM_7B'}</span>
                </div>
-               <span className="text-[9px] text-gray-600 font-mono uppercase">{stats?.device || 'CPU_CORE'}</span>
+               <div className="flex items-center gap-2">
+                  <span className="text-[8px] text-gray-500 font-mono">CPU: {stats?.cpu_load?.toFixed(0)}%</span>
+                  <span className="text-[9px] text-gray-600 font-mono uppercase">{stats?.device || 'CPU_CORE'}</span>
+               </div>
             </div>
             <div className="h-8 w-px bg-gray-800/50 mx-2" />
             <div className="flex items-center gap-4 border-r border-gray-800 pr-6">

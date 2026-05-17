@@ -95,16 +95,24 @@ class IntegratedRAG:
         """Retrieve from both local and web"""
         results = []
         
+        # Ensure query is tokenized for internal fallback consistency
+        if len(query) == 1 and " " in query[0]:
+            from backend.utils import tokenize
+            query = tokenize(query[0])
+        
         # 1. Local retrieval
         local_results = self.retrieve_local(query, k=min(k, 3))
         results.extend(local_results)
         
         # 2. Web search if needed
         if use_web and len(results) < k:
-            web_results = await self.web_search.retrieve_with_web(
-                query, use_web=True, k=k - len(results)
-            )
-            results.extend(web_results)
+            try:
+                web_results = await self.web_search.retrieve_with_web(
+                    query, use_web=True, k=k - len(results)
+                )
+                results.extend(web_results)
+            except Exception as e:
+                print(f"Web retrieval nested error: {e}")
         
         return results[:k]
     

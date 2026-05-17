@@ -40,7 +40,7 @@ logger = setup_logger(__name__)
 class DreamMode:
     """Curriculum-based Wikipedia learning during idle time"""
     
-    def __init__(self, model, continuous_learner, rag_engine, shared_lock):
+    def __init__(self, model, continuous_learner, rag_engine, shared_lock, enabled: bool = True):
         self.model = model
         self.learner = continuous_learner
         self.rag = rag_engine
@@ -51,7 +51,7 @@ class DreamMode:
         self.learning_thread = None
         self.idle_threshold = 60  # 1 minute idle
         self.last_activity = time.time()
-        self.dream_enabled = True # Master switch
+        self.dream_enabled = enabled # Respect passed status
         self._model_lock = shared_lock
         self._ingested_chunks_lock = threading.Lock()
         self._ingested_chunks = set()
@@ -163,10 +163,9 @@ class DreamMode:
             paragraphs = soup.find_all('p')
             text = ' '.join([p.get_text() for p in paragraphs[:20]])
             
-            # Split into chunks (Unicode aware)
-            import re
-            words = re.findall(r'[\w\u1000-\u109F]+', text.lower(), flags=re.UNICODE)
-            words = words[:1000] # Limit size
+        # Split into chunks (Unicode aware using central tokenizer)
+        words = tokenize(text)
+        words = words[:1000] # Limit size
             chunks = [words[i:i+64] for i in range(0, len(words), 64)]
             
             # Learn from each chunk

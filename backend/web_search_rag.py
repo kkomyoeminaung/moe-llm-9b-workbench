@@ -91,16 +91,25 @@ class WebSearchRAG:
         return results
     
     async def retrieve_with_web(self, query_words: List[str], use_web: bool = True, k: int = 5) -> List[List[str]]:
-        """Retrieve from both local RAG and web"""
+        """Retrieve from web and tokenize snippets"""
+        if not use_web:
+            return []
+            
+        from backend.utils import tokenize
         query = ' '.join(query_words)
         all_results = []
         
-        # 1. Local RAG first
-        local_chunks = self.rag.retrieve_local(query_words, k=min(k, 3))
-        for chunk in local_chunks:
-            if chunk and chunk not in all_results:
-                all_results.append(chunk)
-
+        # Perform real web search
+        search_results = await self.search(query, num_results=k)
+        
+        for res in search_results:
+            content = res.get("snippet", "") + " " + res.get("title", "")
+            if content.strip():
+                # Tokenize the snippet into words for RAG consistency
+                tokens = tokenize(content)
+                if tokens:
+                    all_results.append(tokens)
+        
         return all_results[:k]
     
     def get_cache_stats(self) -> Dict:
