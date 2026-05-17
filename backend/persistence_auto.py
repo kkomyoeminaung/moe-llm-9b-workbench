@@ -74,6 +74,9 @@ class AutoPersistence:
             cursor.execute('INSERT OR IGNORE INTO stats (id, total_interactions) VALUES (1, 0)')
 
     def save_rag(self, index, chunks):
+        if faiss is None:
+            print("⚠️ FAISS not available. RAG index not saved.")
+            return
         try:
             faiss.write_index(index, str(self.rag_dir / "faiss.index"))
             with open(self.rag_dir / "chunks.pkl", 'wb') as f:
@@ -83,6 +86,8 @@ class AutoPersistence:
             print(f"⚠️ RAG save failed: {e}")
 
     def load_rag(self):
+        if faiss is None:
+            return None, []
         index_path = self.rag_dir / "faiss.index"
         chunks_path = self.rag_dir / "chunks.pkl"
         if index_path.exists() and chunks_path.exists():

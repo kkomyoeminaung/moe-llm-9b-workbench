@@ -92,6 +92,8 @@ if os.path.exists(KAGGLE_INPUT_DIR):
             source = os.path.join(ds_path, sub)
             if os.path.exists(source) and os.path.isdir(source) and os.listdir(source):
                 print(f"   ✨ AUTO-RESTORE: Found '{sub}' in {dataset}. Merging...")
+                # Ensure the sub exists before copying to it
+                os.makedirs(sub, exist_ok=True)
                 # Use rsync if available for efficiency, otherwise cp
                 if os.system(f"rsync -av --ignore-existing {source}/ {sub}/ &>/dev/null") != 0:
                     os.system(f"cp -rn {source}/* {sub}/ 2>/dev/null")
@@ -128,7 +130,10 @@ print(f"📌 Use this as your Tunnel Password if prompted by localtunnel.")
 
 # Step 2: Bootup Sequence
 print("\n🔥 Igniting Neural Engine (Backend)...")
-backend_process = subprocess.Popen([python_cmd, "backend/app_unified.py"])
+# Inject current directory into PYTHONPATH so backend can find project modules
+backend_env = os.environ.copy()
+backend_env["PYTHONPATH"] = os.getcwd() + os.pathsep + backend_env.get("PYTHONPATH", "")
+backend_process = subprocess.Popen([python_cmd, "backend/app_unified.py"], env=backend_env)
 
 print("🛰️  Starting Interface (Frontend Proxy)...")
 frontend_process = subprocess.Popen(["npm", "run", "dev", "--", "--host", "0.0.0.0"])
