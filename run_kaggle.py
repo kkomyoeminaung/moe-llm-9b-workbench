@@ -22,6 +22,10 @@ print("🚀 MoE Workbench - Automated One-Click Deployment")
 print("==========================================================")
 
 # Step 0: Context Initialization
+print("🧹 Cleaning up previous processes...")
+os.system("fuser -k 3000/tcp 8080/tcp 2>/dev/null")
+time.sleep(2)
+
 repo_url = "https://github.com/kkomyoeminaung/moe-llm-9b-workbench.git"
 repo_name = "moe-llm-9b-workbench"
 
@@ -172,49 +176,47 @@ for i in range(max_retries):
         break
     time.sleep(5)
 
-# Step 4: External Tunneling
-subdomain = f"moe-workbench-{session_id}"
-print(f"\n🌐 Creating Public Access Tunnel...")
-# Using npx localtunnel is more reliable in many cloud environments
+# Step 4: External Tunneling (Cloudflare Tunnel - High Stability)
+print(f"\n🌐 Creating High-Performance Tunnel via Cloudflare...")
+
+# Download cloudflared if not exists
+if not os.path.exists("cloudflared"):
+    os.system("wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared && chmod +x cloudflared")
+
 tunnel_process = subprocess.Popen(
-    ["npx", "localtunnel", "--port", "3000", "--subdomain", subdomain],
+    ["./cloudflared", "tunnel", "--url", "http://127.0.0.1:3000"],
     stdout=subprocess.PIPE,
-    stderr=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
     text=True
 )
 
 url = ""
-# Wait for some output from lt
-# Wait up to 30 seconds for localtunnel
 start_time = time.time()
-while time.time() - start_time < 30:
+print("   - Waiting for neurally-bridged endpoint...")
+while time.time() - start_time < 45:
     line = tunnel_process.stdout.readline()
-    if "your url is" in line.lower():
-        url = line.split("is:")[1].strip()
-        break
-    if not line and tunnel_process.poll() is not None:
-        break
-    time.sleep(1)
-
-if not url:
-    # Try random subdomain fallback
-    print("   - Retrying with random subdomain...")
-    tunnel_process = subprocess.Popen(["npx", "localtunnel", "--port", "3000"], stdout=subprocess.PIPE, text=True)
-    start_time = time.time()
-    while time.time() - start_time < 30:
-        line = tunnel_process.stdout.readline()
-        if "your url is" in line.lower():
-            url = line.split("is:")[1].strip()
+    if not line: break
+    if "trycloudflare.com" in line:
+        # Extract the URL from the line
+        matches = [word for word in line.split() if "trycloudflare.com" in word]
+        if matches:
+            url = matches[0].strip()
+            if not url.startswith("https://"):
+                url = "https://" + url
             break
-        time.sleep(1)
+    time.sleep(0.1)
 
 if url:
-    print("\n" + "*"*60)
+    print("\n" + "="*60)
     print(f"🎉 SUCCESS! YOUR MOE WORKBENCH IS PUBLICLY ACCESSIBLE:")
     print(f"🔗 URL: {url}")
-    print(f"🔑 PASSWORD: {public_ip}")
-    print("*"*60 + "\n")
-    print("📢 PERSISTENCE REMINDER:")
+    print(f"🔑 LOCAL IP (For Auth if prompted): {public_ip}")
+    print("="*60)
+    print("\n💡 NOTE: Cloudflare tunnels are faster and do not require passwords.")
+else:
+    print("❌ Cloudflare tunnel failed. Checking network configuration...")
+
+print("\n📢 PERSISTENCE REMINDER:")
     print("   To save your QLoRA weights and RAG data for the next run:")
     print("   1. Click 'Save Version' in the top right of Kaggle.")
     print("   2. Choose 'Quick Save' or 'Save & Run All'.")

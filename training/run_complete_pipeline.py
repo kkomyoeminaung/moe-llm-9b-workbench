@@ -22,21 +22,21 @@ def main():
 
     # 1. Generate Dataset
     if not os.path.exists("data/train.jsonl"):
-        run_step("python training/generate_large_dataset.py", "Generating dataset")
+        run_step(f"{sys.executable} training/generate_large_dataset.py", "Generating dataset")
     else:
         print("⏭️ Dataset already exists, skipping generation.")
 
     # 2. Build Vocabulary
     if not os.path.exists("data/word_to_idx.json"):
-        run_step("python training/build_vocab.py", "Building vocabulary")
+        run_step(f"{sys.executable} training/build_vocab.py", "Building vocabulary")
     else:
         print("⏭️ Vocabulary already exists, skipping build.")
 
     # 3. Unified Training
-    run_step("python training/train_unified.py", "Starting MoE Unified Training")
+    run_step(f"{sys.executable} training/train_unified.py", "Starting MoE Unified Training")
 
     # 4. Evaluate
-    run_step("python training/evaluate.py", "Evaluating model")
+    run_step(f"{sys.executable} training/evaluate.py", "Evaluating model")
 
     # 5. Export and Quantize (if applicable)
     # run_step("python training/03_quantize_export.ipynb", "Quantizing model")

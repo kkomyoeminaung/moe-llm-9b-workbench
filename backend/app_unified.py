@@ -175,9 +175,13 @@ async def chat_stream(req: ChatRequest):
         model.eval()
         final_text = ""
         avg_confidence = 0.0
+        last_expert_id = 0
         with torch.no_grad():
             for i in range(50): # Max stream length
-                outputs, expert_id = model(ids)
+                outputs, expert_id_tensor = model(ids)
+                expert_id = expert_id_tensor.item()
+                last_expert_id = expert_id
+                
                 logits = outputs[0, -1, :] if outputs.dim() == 3 else outputs[0]
                 probs = torch.softmax(logits / req.temperature, dim=-1)
                 
@@ -196,8 +200,8 @@ async def chat_stream(req: ChatRequest):
                 
                 yield json.dumps({
                     "word": word,
-                    "expert_id": expert_id.item(),
-                    "expert_name": DOMAINS[expert_id.item()] if expert_id.item() < len(DOMAINS) else "general"
+                    "expert_id": expert_id,
+                    "expert_name": DOMAINS[expert_id] if expert_id < len(DOMAINS) else "general"
                 }) + "\n"
                 
                 if word in [".", "!", "?", "<eos>"] and i > 5:
@@ -207,7 +211,7 @@ async def chat_stream(req: ChatRequest):
                 ids = torch.cat([ids, new_id], dim=1)[:, -CONTEXT_LEN:]
                 await asyncio.sleep(0.01)
                 
-        get_orchestrator().record_chat_interaction(req.message, final_text.strip(), expert_id.item(), avg_confidence)
+        get_orchestrator().record_chat_interaction(req.message, final_text.strip(), last_expert_id, avg_confidence)
 
     return StreamingResponse(generate(), media_type="application/json")
 
