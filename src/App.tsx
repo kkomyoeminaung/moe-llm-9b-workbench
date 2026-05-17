@@ -57,7 +57,7 @@ interface ExpertUtil {
 }
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'chat' | 'architect' | 'knowledge' | 'docs'>('docs');
+  const [activeTab, setActiveTab] = useState<'chat' | 'architect' | 'knowledge' | 'docs'>('chat');
   const [messages, setMessages] = useState<Message[]>([
     { role: 'system', content: 'MoE Unified Platform Ready. System online.' }
   ]);

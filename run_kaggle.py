@@ -122,15 +122,14 @@ if found_persistence:
 else:
     print("   - No previous persistent data found. Starting fresh.")
 
-print("   - Installing requirements.txt...")
-os.system(f"{python_cmd} -m pip install -r requirements.txt &> /dev/null")
+print("   - Installing requirements.txt (This may take a minute)...")
+os.system(f"{python_cmd} -m pip install -r requirements.txt")
 
-print("   - Installing npm packages...")
-os.system("npm install &> /dev/null")
-os.system("npm install -g localtunnel &> /dev/null")
+print("   - Installing npm packages (This may take a minute)...")
+os.system("npm install")
 
 print(f"✅ Session IP: {public_ip}")
-print(f"📌 Use this as your Tunnel Password if prompted by localtunnel.")
+print(f"📌 System is ready for the neural bridge.")
 
 # Step 2: Bootup Sequence
 print("\n🔥 Igniting Neural Engine (Backend)...")
@@ -139,11 +138,66 @@ backend_env = os.environ.copy()
 backend_env["PYTHONPATH"] = os.getcwd() + os.pathsep + backend_env.get("PYTHONPATH", "")
 backend_process = subprocess.Popen([python_cmd, "backend/app_unified.py"], env=backend_env)
 
-print("🛰️  Starting Interface (Frontend Proxy)...")
-frontend_process = subprocess.Popen(["npm", "run", "dev", "--", "--host", "0.0.0.0"])
+print("🛰️  Starting Interface (Full-stack Server)...")
+# We start the frontend server via server.ts (npm run dev)
+# We must set START_BACKEND=false because we already manualy started it on port 8080
+frontend_env = os.environ.copy()
+frontend_env["START_BACKEND"] = "false"
+frontend_process = subprocess.Popen(["npm", "run", "dev"], env=frontend_env)
 
-# Step 3: Stabilization Check
+# Step 3: External Tunneling (Cloudflare Tunnel - High Stability)
+# We start the tunnel EARLIER so the user gets the URL while the model is loading
+print(f"\n🌐 Creating High-Performance Tunnel via Cloudflare...")
+
+# Download cloudflared if not exists
+if not os.path.exists("cloudflared"):
+    os.system("wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared && chmod +x cloudflared")
+
+tunnel_process = subprocess.Popen(
+    ["./cloudflared", "tunnel", "--url", "http://127.0.0.1:3000"],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    text=True,
+    bufsize=1
+)
+
+url = ""
+start_time = time.time()
+print("   - Waiting for neurally-bridged endpoint...")
+while time.time() - start_time < 60:
+    line = tunnel_process.stdout.readline()
+    if not line: 
+        if tunnel_process.poll() is not None: break
+        time.sleep(0.5)
+        continue
+    
+    # Cloudflare logs sometimes have ansi codes or non-url lines
+    clean_line = line.replace('\x1b', '').replace('[', '').replace(']', '')
+    if "trycloudflare.com" in clean_line:
+        words = clean_line.split()
+        for word in words:
+            if "trycloudflare.com" in word:
+                url = word.strip("| \r\n\t")
+                if not url.startswith("http"):
+                    url = "https://" + url
+                break
+        if url: break
+    time.sleep(0.1)
+
+if url:
+    print("\n" + "="*60)
+    print(f"🎉 SUCCESS! YOUR MOE WORKBENCH IS PUBLICLY ACCESSIBLE:")
+    print(f"🔗 URL: {url}")
+    print(f"🔑 LOCAL IP (For Auth if prompted): {public_ip}")
+    print("="*60)
+    print("\n💡 NOTE: Cloudflare tunnels are faster and do not require passwords.")
+    print("   If you see a verification page, just click 'Visit Site'.")
+else:
+    print("❌ Cloudflare tunnel failed or timed out. Checking network configuration...")
+
+# Step 4: Stabilization Check
 print("\n⏳ Stabilizing system (Downloading weights & initializing)...")
+print("   - While you wait, you can open the URL above to see the interface.")
 max_retries = 150 # Up to 12.5 minutes
 backend_ready = False
 frontend_ready = False
@@ -176,46 +230,6 @@ for i in range(max_retries):
         break
     time.sleep(5)
 
-# Step 4: External Tunneling (Cloudflare Tunnel - High Stability)
-print(f"\n🌐 Creating High-Performance Tunnel via Cloudflare...")
-
-# Download cloudflared if not exists
-if not os.path.exists("cloudflared"):
-    os.system("wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared && chmod +x cloudflared")
-
-tunnel_process = subprocess.Popen(
-    ["./cloudflared", "tunnel", "--url", "http://127.0.0.1:3000"],
-    stdout=subprocess.PIPE,
-    stderr=subprocess.STDOUT,
-    text=True
-)
-
-url = ""
-start_time = time.time()
-print("   - Waiting for neurally-bridged endpoint...")
-while time.time() - start_time < 45:
-    line = tunnel_process.stdout.readline()
-    if not line: break
-    if "trycloudflare.com" in line:
-        # Clean up the URL from pipes and whitespace
-        matches = [word.strip("| ") for word in line.split() if "trycloudflare.com" in word]
-        if matches:
-            url = matches[0]
-            if not url.startswith("http"):
-                url = "https://" + url
-            break
-    time.sleep(0.1)
-
-if url:
-    print("\n" + "="*60)
-    print(f"🎉 SUCCESS! YOUR MOE WORKBENCH IS PUBLICLY ACCESSIBLE:")
-    print(f"🔗 URL: {url}")
-    print(f"🔑 LOCAL IP (For Auth if prompted): {public_ip}")
-    print("="*60)
-    print("\n💡 NOTE: Cloudflare tunnels are faster and do not require passwords.")
-else:
-    print("❌ Cloudflare tunnel failed. Checking network configuration...")
-
 print("\n📢 PERSISTENCE REMINDER:")
 print("   To save your QLoRA weights and RAG data for the next run:")
 print("   1. Click 'Save Version' in the top right of Kaggle.")
@@ -224,16 +238,21 @@ print("   3. On the next run, add this run's output as an 'Input Dataset'.")
 print("   4. The system will automatically detect and restore your brain. 🧠")
 
 print("\nInstructions:")
-print("1. Click the URL above.")
-print("2. Enjoy your 9B MoE Workbench!")
+print("1. Click the '🔗 URL' above.")
+print("2. If Cloudflare asks for a tunnel protection page, just click 'Visit Site'.")
+print("3. Enjoy your 9B MoE Workbench!")
 
 try:
     while True:
         if frontend_process.poll() is not None: 
-            print("\nFrontend process exited.")
+            print("\n❌ CRITICAL: Frontend process (Vite/Node) exited unexpectedly.")
+            out, err = frontend_process.communicate()
+            if err: print(f"Error details: {err}")
             break
         if backend_process.poll() is not None: 
-            print("\nBackend process exited.")
+            print("\n❌ CRITICAL: Backend process (Python/FastAPI) exited unexpectedly.")
+            out, err = backend_process.communicate()
+            if err: print(f"Error details: {err}")
             break
         time.sleep(2)
 except KeyboardInterrupt:
