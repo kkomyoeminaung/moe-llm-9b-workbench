@@ -216,7 +216,8 @@ async def chat_stream(req: ChatRequest):
 
         if is_ext:
             # Send expert identification for 7B model
-            yield f"data: {json.dumps({'word': '🧠 MoE Architect thinking...\n\n', 'expert_id': 0, 'expert_name': display_name})}\n\n"
+            # Use safer string concatenation instead of f-string with complex expressions
+            yield "data: " + json.dumps({'word': '🧠 MoE Architect thinking...\n\n', 'expert_id': 0, 'expert_name': display_name}) + "\n\n"
             
             # Optimized for 7B Qwen stability
             actual_temp = max(0.01, min(req.temperature, 0.9))
@@ -228,16 +229,18 @@ async def chat_stream(req: ChatRequest):
                     temperature=actual_temp
                 ))
             except Exception as e:
-                yield f"data: {json.dumps({'word': f'\n[Generation Initialization Error: {str(e)}]', 'expert_id': 0, 'expert_name': 'System'})}\n\n"
+                yield "data: " + json.dumps({'word': f'\n[Generation Initialization Error: {str(e)}]', 'expert_id': 0, 'expert_name': 'System'}) + "\n\n"
                 return
 
             final_text = ""
             while True:
                 try:
-                    # Run the next iteration in a thread
-                    token = await asyncio.to_thread(next, iterator)
+                    # Run the next iteration in a thread with a default to avoid StopIteration exception
+                    token = await asyncio.to_thread(next, iterator, None)
                     
-                    if token is None: break
+                    if token is None:
+                        break
+                    
                     final_text += token
                     
                     # Stop if model generates the EOS token or a stop sequence
@@ -250,19 +253,15 @@ async def chat_stream(req: ChatRequest):
                         'expert_name': display_name,
                         'confidence': 0.0
                     })
-                    yield f"data: {payload}\n\n"
+                    yield "data: " + payload + "\n\n"
                     
-                except StopIteration:
-                    # Normal completion
-                    break
                 except Exception as e:
-                    # Any other error at this boundary (including issues with to_thread)
-                    # should also trigger a graceful termination to prevent crash.
-                    logger.warning(f"Gracefully terminating stream due to generator boundary exception: {e}")
+                    # Log and terminate gracefully
+                    logger.warning(f"Gracefully terminating stream due to generator exception: {e}")
                     break
 
-            
-            # Ensure the generator gracefully closes
+            # Signal completion
+            yield "data: " + json.dumps({'done': True}) + "\n\n"
             return
 
         # Original Custom MoE Logic
