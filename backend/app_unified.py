@@ -171,6 +171,15 @@ async def chat_stream(req: ChatRequest):
                 except StopIteration:
                     break
             
+            if not final_text.strip():
+                error_msg = json.dumps({
+                    'word': "\n[Backend generation resulted in an empty response. Please check Python console logs for memory or tokenizer errors.]",
+                    'expert_id': 0,
+                    'expert_name': 'System',
+                    'confidence': 0.0
+                })
+                yield f"data: {error_msg}\n\n"
+            
             get_orchestrator().record_chat_interaction(req.message, final_text, 0, 1.0)
             return
 

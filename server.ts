@@ -130,28 +130,7 @@ async function startServer() {
   function serveMockResponse(req: any, res: any) {
     const fetchUrl = req.originalUrl || req.url;
     if (fetchUrl.includes('/chat/stream')) {
-      res.writeHead(200, {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive'
-      });
-      const text = "System is starting up... (PyTorch engine loading). Please copy your Session IP as the 'Tunnel Password' if requested. This usually takes 2-5 minutes in Colab/Kaggle environments.";
-      const words = text.split(' ');
-      let i = 0;
-      const interval = setInterval(() => {
-        if (i >= words.length) {
-          clearInterval(interval);
-          res.end();
-          return;
-        }
-        res.write(`data: ${JSON.stringify({
-          word: words[i] + ' ',
-          expert_id: 0,
-          expert_name: "Mock AI (Preview Context)"
-        })}\n\n`);
-        i++;
-      }, 50);
-      return;
+      return res.status(503).json({ error: 'Backend Not Ready', details: 'The PyTorch backend is still loading.' });
     }
 
     if (fetchUrl.includes('/stats')) {

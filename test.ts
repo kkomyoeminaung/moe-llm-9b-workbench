@@ -2,8 +2,8 @@ import http from 'http';
 
 const req = http.request({
   hostname: '127.0.0.1',
-  port: 3000,
-  path: '/api/chat/stream',
+  port: 8080,
+  path: '/chat/stream',
   method: 'POST',
   headers: { 'Content-Type': 'application/json' }
 }, (res) => {
