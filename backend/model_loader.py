@@ -160,6 +160,7 @@ class MoE7B_ArchitecturalEngine(nn.Module):
         """
         from transformers import TextIteratorStreamer
         from threading import Thread
+        import queue
 
         if isinstance(messages, str):
             messages = [{"role": "user", "content": messages}]
@@ -184,7 +185,6 @@ class MoE7B_ArchitecturalEngine(nn.Module):
         eos_id = self.tokenizer.eos_token_id
         pad_id = self.tokenizer.pad_token_id
         
-        # Ensure pad_id is a single integer
         if pad_id is None and eos_id is not None:
             if isinstance(eos_id, list):
                 pad_id = eos_id[0]
@@ -196,21 +196,30 @@ class MoE7B_ArchitecturalEngine(nn.Module):
         if eos_id is not None:
             generation_kwargs['eos_token_id'] = eos_id
 
+        # Use a queue to safely bridge the threads
+        token_queue = queue.Queue()
+
         def threaded_generate():
             try:
                 self.model.generate(**generation_kwargs)
             except Exception as e:
                 import traceback
                 traceback.print_exc()
+                token_queue.put(f"__ERROR__:{str(e)}")
             finally:
                 if hasattr(streamer, 'end'):
                     streamer.end()
+                token_queue.put(None) # Sentinel for end of generation
 
         thread = Thread(target=threaded_generate)
         thread.start()
         
-        for new_text in streamer:
-            yield new_text
+        # Generator for the queue
+        while True:
+            token = token_queue.get()
+            if token is None:
+                break
+            yield token
 
 class MoELoader(nn.Module):
     def __init__(self, model_path=None):

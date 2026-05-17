@@ -222,43 +222,50 @@ async def chat_stream(req: ChatRequest):
             # Optimized for 7B Qwen stability
             actual_temp = max(0.01, min(req.temperature, 0.9))
             
-            try:
-                iterator = iter(model.adapter.stream_generate(
+            token_iterator = iter(model.adapter.stream_generate(
                     messages, 
                     max_new_tokens=req.max_tokens, 
                     temperature=actual_temp
                 ))
-            except Exception as e:
-                yield "data: " + json.dumps({'word': f'\n[Generation Initialization Error: {str(e)}]', 'expert_id': 0, 'expert_name': 'System'}) + "\n\n"
-                return
+
+            # Helper to run next() safely inside the thread
+            def safe_next(it):
+                try:
+                    return next(it)
+                except StopIteration:
+                    return "__STREAM_END_SENTINEL__"
+                except Exception as e:
+                    return f"__STREAM_ERROR_SENTINEL__:{str(e)}"
 
             final_text = ""
             while True:
-                try:
-                    # Run the next iteration in a thread with a default to avoid StopIteration exception
-                    token = await asyncio.to_thread(next, iterator, None)
-                    
-                    if token is None:
-                        break
-                    
-                    final_text += token
-                    
-                    # Stop if model generates the EOS token or a stop sequence
-                    if any(stop in token for stop in ["<|endoftext|>", "<|im_end|>", "</s>", "unknown"]):
-                        break
-                        
-                    payload = json.dumps({
-                        'word': token,
-                        'expert_id': 0,
-                        'expert_name': display_name,
-                        'confidence': 0.0
-                    })
-                    yield "data: " + payload + "\n\n"
-                    
-                except Exception as e:
-                    # Log and terminate gracefully
-                    logger.warning(f"Gracefully terminating stream due to generator exception: {e}")
+                # Run the next iteration in a thread securely
+                token = await asyncio.to_thread(safe_next, token_iterator)
+                
+                # Check for end of stream
+                if token == "__STREAM_END_SENTINEL__" or token is None:
                     break
+                
+                # Check for errors
+                if isinstance(token, str) and token.startswith("__STREAM_ERROR_SENTINEL__"):
+                    err = token.split(":", 1)[1]
+                    logger.warning(f"Stream error: {err}")
+                    yield "data: " + json.dumps({'word': f'\n[Generation Error: {err}]', 'expert_id': 0, 'expert_name': 'System'}) + "\n\n"
+                    break
+
+                final_text += token
+                
+                # Stop if model generates the EOS token or a stop sequence
+                if any(stop in token for stop in ["<|endoftext|>", "<|im_end|>", "</s>", "unknown"]):
+                    break
+                    
+                payload = json.dumps({
+                    'word': token,
+                    'expert_id': 0,
+                    'expert_name': display_name,
+                    'confidence': 0.0
+                })
+                yield "data: " + payload + "\n\n"
 
             # Signal completion
             yield "data: " + json.dumps({'done': True}) + "\n\n"
