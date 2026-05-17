@@ -197,11 +197,11 @@ while time.time() - start_time < 45:
     line = tunnel_process.stdout.readline()
     if not line: break
     if "trycloudflare.com" in line:
-        # Extract the URL from the line
-        matches = [word for word in line.split() if "trycloudflare.com" in word]
+        # Clean up the URL from pipes and whitespace
+        matches = [word.strip("| ") for word in line.split() if "trycloudflare.com" in word]
         if matches:
-            url = matches[0].strip()
-            if not url.startswith("https://"):
+            url = matches[0]
+            if not url.startswith("http"):
                 url = "https://" + url
             break
     time.sleep(0.1)
@@ -217,17 +217,15 @@ else:
     print("❌ Cloudflare tunnel failed. Checking network configuration...")
 
 print("\n📢 PERSISTENCE REMINDER:")
-    print("   To save your QLoRA weights and RAG data for the next run:")
-    print("   1. Click 'Save Version' in the top right of Kaggle.")
-    print("   2. Choose 'Quick Save' or 'Save & Run All'.")
-    print("   3. On the next run, add this run's output as an 'Input Dataset'.")
-    print("   4. The system will automatically detect and restore your brain. 🧠")
-    print("\nInstructions:")
-    print("1. Click the URL above.")
-    print("2. If prompted, enter the PASSWORD shown above.")
-    print("3. Enjoy your 9B MoE Workbench!")
-else:
-    print("\n❌ Failed to create public tunnel. You can try running 'lt --port 3000' manually.")
+print("   To save your QLoRA weights and RAG data for the next run:")
+print("   1. Click 'Save Version' in the top right of Kaggle.")
+print("   2. Choose 'Quick Save' or 'Save & Run All'.")
+print("   3. On the next run, add this run's output as an 'Input Dataset'.")
+print("   4. The system will automatically detect and restore your brain. 🧠")
+
+print("\nInstructions:")
+print("1. Click the URL above.")
+print("2. Enjoy your 9B MoE Workbench!")
 
 try:
     while True:

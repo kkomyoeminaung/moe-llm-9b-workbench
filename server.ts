@@ -15,7 +15,9 @@ async function startServer() {
   function startBackend() {
     if (process.env.START_BACKEND === "true") {
       console.log("🚀 Starting PyTorch Backend Engine...");
-      const backend = spawn("python3", ["backend/app_unified.py"]);
+      const backend = spawn("python3", ["backend/app_unified.py"], {
+        env: { ...process.env, PYTHONPATH: process.cwd() }
+      });
       backend.stdout.on("data", (data) => console.log(`[Backend] ${data}`));
       backend.stderr.on("data", (data) => console.error(`[Backend Error] ${data}`));
       backend.on("error", (err) => {

@@ -53,15 +53,16 @@ class MoE7B_ArchitecturalEngine(nn.Module):
         print(f"🧠 Stabilizing 7B MoE Core ({model_path})...")
         
         quant_config = None
-        if QUANTIZATION == "4bit":
-            quant_config = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_quant_type="nf4",
-                bnb_4bit_use_double_quant=True
-            )
-        elif QUANTIZATION == "8bit":
-            quant_config = BitsAndBytesConfig(load_in_8bit=True)
+        if DEVICE.type == "cuda":
+            if QUANTIZATION == "4bit":
+                quant_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_compute_dtype=torch.float16,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_use_double_quant=True
+                )
+            elif QUANTIZATION == "8bit":
+                quant_config = BitsAndBytesConfig(load_in_8bit=True)
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_path, trust_remote_code=True)
         self.model = AutoModelForCausalLM.from_pretrained(
@@ -74,21 +75,22 @@ class MoE7B_ArchitecturalEngine(nn.Module):
         )
         
         # Apply PEFT / QLoRA stacking for continuous learning without breaking weights
-        try:
-            from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
-            self.model = prepare_model_for_kbit_training(self.model)
-            lora_config = LoraConfig(
-                r=8, 
-                lora_alpha=16, 
-                target_modules=["q_proj", "k_proj", "v_proj", "o_proj"], 
-                lora_dropout=0.05, 
-                bias="none", 
-                task_type="CAUSAL_LM"
-            )
-            self.model = get_peft_model(self.model, lora_config)
-            print("🔗 QLoRA Adapters successfully stacked over 7B Core.")
-        except Exception as e:
-            print(f"⚠️ Could not load QLoRA wrappers: {e}")
+        if DEVICE.type == "cuda":
+            try:
+                from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+                self.model = prepare_model_for_kbit_training(self.model)
+                lora_config = LoraConfig(
+                    r=8, 
+                    lora_alpha=16, 
+                    target_modules=["q_proj", "k_proj", "v_proj", "o_proj"], 
+                    lora_dropout=0.05, 
+                    bias="none", 
+                    task_type="CAUSAL_LM"
+                )
+                self.model = get_peft_model(self.model, lora_config)
+                print("🔗 QLoRA Adapters successfully stacked over 7B Core.")
+            except Exception as e:
+                print(f"⚠️ Could not load QLoRA wrappers: {e}")
 
         if DEVICE.type == "cpu":
             self.model = self.model.to("cpu")

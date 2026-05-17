@@ -41,6 +41,7 @@ fi
 
 # 3. Start Backend
 echo "🔥 Starting 7B MoE Core Engine (Backend)..."
+export PYTHONPATH=$PYTHONPATH:$(pwd)
 python3 backend/app_unified.py &
 BACKEND_PID=$!
 
