@@ -135,8 +135,7 @@ class MoE7B_ArchitecturalEngine(nn.Module):
             repetition_penalty=1.1,
             do_sample=True if temperature > 0 else False,
             pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
-            renormalize_logits=True
+            eos_token_id=self.tokenizer.eos_token_id
         )
         
         # Decode only the newly generated tokens
@@ -169,11 +168,20 @@ class MoE7B_ArchitecturalEngine(nn.Module):
             repetition_penalty=1.1,
             do_sample=True if temperature > 0 else False,
             pad_token_id=self.tokenizer.pad_token_id,
-            eos_token_id=self.tokenizer.eos_token_id,
-            renormalize_logits=True
+            eos_token_id=self.tokenizer.eos_token_id
         )
 
-        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+        def threaded_generate():
+            try:
+                self.model.generate(**generation_kwargs)
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+            finally:
+                if hasattr(streamer, 'end'):
+                    streamer.end()
+
+        thread = Thread(target=threaded_generate)
         thread.start()
         
         for new_text in streamer:

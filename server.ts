@@ -128,7 +128,8 @@ async function startServer() {
 
   // Mock response fallback function
   function serveMockResponse(req: any, res: any) {
-    if (req.url === '/chat/stream') {
+    const fetchUrl = req.originalUrl || req.url;
+    if (fetchUrl.includes('/chat/stream')) {
       res.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
@@ -153,7 +154,7 @@ async function startServer() {
       return;
     }
 
-    if (req.url === '/stats') {
+    if (fetchUrl.includes('/stats')) {
       return res.status(200).json({
         status: "mock",
         expert_utilization: [0.33, 0.33, 0.34],
@@ -165,7 +166,7 @@ async function startServer() {
       });
     }
 
-    if (req.url === '/dream/status') {
+    if (fetchUrl.includes('/dream/status')) {
       return res.status(200).json({
         is_active: false,
         current_stage: 1,
@@ -177,7 +178,7 @@ async function startServer() {
       });
     }
 
-    if (req.url === '/chat') {
+    if (fetchUrl.includes('/chat')) {
       return res.status(200).json({
         response: "The Python backend is not running in this environment. Please run the Kaggle/Colab notebook.",
         expert_used: 0,

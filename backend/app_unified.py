@@ -92,12 +92,12 @@ def get_orchestrator():
 # --- Models ---
 class ChatRequest(BaseModel):
     message: List[str]
-    system_prompt: Optional[str] = "You are a highly intelligent Mixture of Experts (MoE) Large Language Model. You provide accurate, helpful, and concise answers."
+    system_prompt: Optional[str] = "You are a highly intelligent Mixture of Experts (MoE) Large Language Model. You provide accurate, helpful, detailed, and eloquent answers."
     use_rag: bool = True
     use_web: bool = False
     stream: bool = False
     temperature: float = 0.1
-    max_tokens: int = 512
+    max_tokens: int = 1024
     top_k: int = 40
 
 class ChatResponse(BaseModel):

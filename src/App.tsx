@@ -68,8 +68,8 @@ export default function App() {
   const [useRAG, setUseRAG] = useState(true);
   const [temp, setTemp] = useState(0.1);
   const [topK, setTopK] = useState(40);
-  const [maxTokens, setMaxTokens] = useState(512);
-  const [systemPrompt, setSystemPrompt] = useState('You are a highly intelligent Mixture of Experts (MoE) Large Language Model specialized in Software, Math, and Logic.');
+  const [maxTokens, setMaxTokens] = useState(1024);
+  const [systemPrompt, setSystemPrompt] = useState('You are a highly intelligent Mixture of Experts (MoE) Large Language Model specialized in Software, Math, and Logic. Provide detailed, eloquent, and comprehensive answers.');
   const [streamEnabled, setStreamEnabled] = useState(true);
   const [dreamEnabled, setDreamEnabled] = useState(true);
   
@@ -549,13 +549,13 @@ export default function App() {
                         </div>
                       )}
                       {msg.role === 'bot' || msg.role === 'system' ? (
-                        <div className="prose prose-invert prose-sm max-w-none text-[15px] leading-relaxed break-words">
+                        <div className="prose prose-invert prose-lg max-w-none text-lg leading-relaxed break-words">
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>
                             {msg.content}
                           </ReactMarkdown>
                         </div>
                       ) : (
-                        <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
+                        <p className="text-lg leading-relaxed whitespace-pre-wrap break-words">{msg.content}</p>
                       )}
                     </div>
                   </motion.div>
@@ -569,7 +569,7 @@ export default function App() {
                   <div className="flex gap-2">
                     <input 
                       type="text"
-                      className="flex-1 bg-[#111114]/50 border border-gray-800/50 rounded-xl px-4 py-2 text-[11px] text-gray-400 focus:border-blue-500/30 outline-none transition-all"
+                      className="flex-1 bg-[#111114]/50 border border-gray-800/50 rounded-xl px-4 py-2 text-sm text-gray-400 focus:border-blue-500/30 outline-none transition-all"
                       placeholder="System Persona / Instruction..."
                       value={systemPrompt}
                       onChange={e => setSystemPrompt(e.target.value)}
@@ -590,7 +590,7 @@ export default function App() {
                       <Upload size={18} />
                     </button>
                     <input 
-                      className="flex-1 bg-transparent border-none outline-none text-sm text-gray-200 px-3 py-2"
+                      className="flex-1 bg-transparent border-none outline-none text-base text-gray-200 px-3 py-2"
                       placeholder="Ask 7B MoE Architecture... (Software, Math, Logic)"
                       value={input}
                       onChange={e => setInput(e.target.value)}
